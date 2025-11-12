@@ -5,6 +5,34 @@ const RPC_URL = process.env.SOLANA_RPC_URL!;
 const BOT_WALLET = process.env.BOT_WALLET_ADDRESS!;
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
+async function fetchDexscreenerPriceUsd(mint: string): Promise<number | null> {
+  try {
+    const url = `https://api.dexscreener.com/tokens/v1/solana/${mint}`;
+    const res = await fetch(url, { cache: "no-store" });
+
+    if (!res.ok) {
+      console.error("Dexscreener error", res.status);
+      return null;
+    }
+
+    const data = await res.json();
+
+    // Response is an array, we grab first pair if exists
+    if (Array.isArray(data) && data.length > 0) {
+      const first = data[0];
+      const priceUsd = first?.priceUsd;
+      if (priceUsd !== undefined && priceUsd !== null) {
+        return Number(priceUsd);
+      }
+    }
+
+    return null;
+  } catch (e) {
+    console.error("Dexscreener fetch failed", e);
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     if (!RPC_URL || !BOT_WALLET) {
@@ -31,14 +59,26 @@ export async function GET() {
       }
     );
 
-    const tokens = tokenAccounts.value
-      .map((acc) => {
+    // Get raw token balances
+    const rawTokens = tokenAccounts.value
+    .map((acc) => {
         const info: any = acc.account.data.parsed.info;
         const amount = info.tokenAmount.uiAmount as number | null;
         const mint = info.mint as string;
         return { mint, amount: amount || 0 };
-      })
-      .filter((t) => t.amount > 0);
+    })
+    .filter((t) => t.amount > 0);
+
+    // For each token, fetch its USD price from DexScreener
+    const tokens = await Promise.all(
+    rawTokens.map(async (t) => {
+        const priceUsd = await fetchDexscreenerPriceUsd(t.mint);
+        return {
+        ...t,
+        priceUsd, // may be null if DexScreener has no data
+        };
+    })
+    );
 
     // 3) Recent txs for this wallet
     const signatures = await connection.getSignaturesForAddress(pubkey, {
