@@ -1,120 +1,108 @@
 "use client";
-
 import { useEffect, useState } from "react";
 
-type TokenBalance = { mint: string; amount: number };
-type Trade = {
-  signature: string;
-  time: string | null;
-  mint: string;
-  amount: number;
-  side: "BUY" | "SELL";
-};
-
-type WalletData = {
-  wallet: string;
-  solBalance: number;
-  tokens: TokenBalance[];
-  trades: Trade[];
-  error?: string;
-};
-
 export default function Home() {
-  const [data, setData] = useState<WalletData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    const load = async () => {
       const res = await fetch("/api/wallet");
       const json = await res.json();
       setData(json);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000); // refresh every 30 seconds
-    return () => clearInterval(interval);
+    };
+    load();
+    const i = setInterval(load, 30000);
+    return () => clearInterval(i);
   }, []);
 
-  if (loading && !data) {
+  if (!data) {
     return (
-      <main className="min-h-screen bg-black text-gray-100 flex items-center justify-center">
-        <p>Loading Deus wallet data…</p>
-      </main>
-    );
-  }
-
-  if (!data || data.error) {
-    return (
-      <main className="min-h-screen bg-black text-red-400 flex items-center justify-center">
-        <p>Failed to load wallet data.</p>
+      <main className="min-h-screen flex items-center justify-center text-center terminal-glow">
+        Initializing Deus Terminal…
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-black text-gray-100 p-8">
-      <h1 className="text-3xl font-bold mb-2">Deus Vision – Bot Wallet Monitor</h1>
-      <p className="mb-6 text-sm text-gray-400">
-        Watching wallet: <span className="font-mono">{data.wallet}</span>
+    <main className="min-h-screen p-8 space-y-12 terminal-glow">
+      
+      {/* HEADER */}
+      <h1 className="text-4xl mb-2 terminal-glow">
+        ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
+      </h1>
+      <p className="text-md text-[#00ffaacc]">
+        Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
       </p>
 
-      {/* Balances */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-2">Balances</h2>
-        <p className="mb-2 text-lg">
-          SOL: <span className="font-mono">{data.solBalance.toFixed(4)}</span>
-        </p>
-        <h3 className="font-semibold mt-4 mb-2">SPL Tokens</h3>
-        {data.tokens.length === 0 && (
-          <p className="text-sm">No SPL token balances detected.</p>
-        )}
-        <ul className="space-y-1 text-sm">
-          {data.tokens.map((t) => (
-            <li key={t.mint}>
-              <span className="font-mono">{t.mint}</span> — {t.amount}
-            </li>
-          ))}
-        </ul>
+      {/* SOL BALANCE */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ SOL BALANCE ]</h2>
+        <p className="text-2xl">{data.solBalance.toFixed(4)} SOL</p>
       </section>
 
-      {/* Trades */}
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Recent Token Changes (Buys/Sells)</h2>
-        {data.trades.length === 0 && (
-          <p className="text-sm">No recent token activity detected for this wallet.</p>
+      {/* TOKEN BALANCES */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ TOKENS HELD ]</h2>
+
+        {data.tokens.length === 0 ? (
+          <p>No SPL tokens detected.</p>
+        ) : (
+          <table className="terminal-table">
+            <thead>
+              <tr>
+                <th>Token Mint</th>
+                <th>Amount</th>
+                <th>Price (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.tokens.map((t: any) => (
+                <tr key={t.mint}>
+                  <td className="font-mono">{t.mint}</td>
+                  <td>{t.amount}</td>
+                  <td>{t.priceUsd ? `$${t.priceUsd}` : "N/A"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
-        <ul className="space-y-2 text-sm">
-          {data.trades.map((tr, idx) => (
-            <li
-              key={tr.signature + idx}
-              className="border border-gray-700 p-3 rounded-md"
-            >
-              <div>
-                <span
-                  className={
-                    tr.side === "BUY"
-                      ? "text-green-400 font-semibold"
-                      : "text-red-400 font-semibold"
-                  }
+      </section>
+
+      {/* RECENT TRADES */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ RECENT TOKEN MOVEMENT ]</h2>
+
+        {data.trades.length === 0 ? (
+          <p>No recent trades detected.</p>
+        ) : (
+          <div className="space-y-4">
+            {data.trades.map((tr: any, i: number) => (
+              <div key={i} className="p-4 border border-[#00ff9d33] rounded">
+                <p>
+                  <span
+                    className={
+                      tr.side === "BUY"
+                        ? "text-green-300 font-bold"
+                        : "text-red-400 font-bold"
+                    }
+                  >
+                    {tr.side}
+                  </span>{" "}
+                  {tr.amount} of {tr.mint}
+                </p>
+
+                <p className="text-sm text-[#00ffaacc]">{tr.time}</p>
+
+                <a
+                  href={`https://solscan.io/tx/${tr.signature}`}
+                  target="_blank"
                 >
-                  {tr.side}
-                </span>{" "}
-                {tr.amount} of{" "}
-                <span className="font-mono">{tr.mint}</span>
+                  TX → {tr.signature.slice(0, 12)}…
+                </a>
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {tr.time || "Unknown time"} — tx: {tr.signature.slice(0, 8)}...
-              </div>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

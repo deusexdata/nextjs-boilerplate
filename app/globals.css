@@ -1,26 +1,72 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* TERMINAL BACKGROUND */
+html, body {
+  background: #000000;
+  color: #00ff9d;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  padding: 0;
+  margin: 0;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Smooth text */
+* {
+  -webkit-font-smoothing: antialiased;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Green glow */
+.terminal-glow {
+  text-shadow: 0 0 6px rgba(0, 255, 157, 0.8), 0 0 12px rgba(0, 255, 157, 0.5);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Terminal box */
+.terminal-box {
+  border: 1px solid #00ff9d55;
+  padding: 20px;
+  border-radius: 8px;
+  background: rgba(0, 20, 10, 0.4);
+  box-shadow: 0 0 20px #00ff9d33 inset;
+}
+
+/* Section headers */
+.terminal-title {
+  font-size: 22px;
+  margin-bottom: 10px;
+  color: #00ffc8;
+  text-shadow: 0 0 10px #00ffc8aa;
+}
+
+/* Tables */
+.terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.terminal-table th, .terminal-table td {
+  border: 1px solid #00ff9d33;
+  padding: 6px 10px;
+}
+
+.terminal-table th {
+  background: #003322aa;
+  color: #00ffc8;
+  text-align: left;
+}
+
+.terminal-table tr:nth-child(odd) {
+  background: #001a10aa;
+}
+
+.terminal-table tr:hover {
+  background: #004422aa;
+}
+
+/* Links */
+a {
+  color: #4ecbff;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #77e1ff;
+  text-shadow: 0 0 8px #77e1ff;
 }
