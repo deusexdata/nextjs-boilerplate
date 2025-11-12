@@ -3,55 +3,12 @@ import { useEffect, useState } from "react";
 
 export default function Home() {
   const [data, setData] = useState<any>(null);
-  const [positions, setPositions] = useState<any>({});
 
   useEffect(() => {
     const load = async () => {
       const res = await fetch("/api/wallet");
       const json = await res.json();
       setData(json);
-
-      // --- PNL (placeholder using current prices) ---
-      if (json.tokens && json.trades) {
-        const pos: any = {};
-
-        // initialize base positions
-        json.tokens.forEach((t: any) => {
-          pos[t.mint] = {
-            mint: t.mint,
-            amount: t.amount,
-            priceUsd: t.priceUsd,
-            avgPrice: 0,
-            costBasis: 0,
-            valueUsd: (t.priceUsd || 0) * t.amount,
-            pnlUsd: 0,
-          };
-        });
-
-        // calculate cost basis from "virtual" avg price
-        json.trades.forEach((tr: any) => {
-          if (tr.side === "BUY") {
-            const priceAtBuy = pos[tr.mint]?.priceUsd || 0;
-            if (priceAtBuy > 0) {
-              pos[tr.mint].costBasis += tr.amount * priceAtBuy;
-            }
-          }
-        });
-
-        Object.keys(pos).forEach((mint) => {
-          const p = pos[mint];
-
-          if (p.amount > 0 && p.costBasis > 0) {
-            p.avgPrice = p.costBasis / p.amount;
-            p.pnlUsd = p.valueUsd - p.costBasis;
-          } else {
-            p.avgPrice = 0;
-            p.pnlUsd = 0;
-          }
-        });
-
-        setPositions(pos);
-      }
     };
 
     load();
@@ -71,7 +28,9 @@ export default function Home() {
     <main className="min-h-screen p-8 space-y-12 terminal-glow">
 
       {/* HEADER */}
-      <h1 className="text-4xl mb-2 terminal-glow">► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL</h1>
+      <h1 className="text-4xl mb-2 terminal-glow">
+        ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
+      </h1>
       <p className="text-md text-[#00ffaacc]">
         Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
       </p>
@@ -82,41 +41,7 @@ export default function Home() {
         <p className="text-2xl">{data.solBalance.toFixed(4)} SOL</p>
       </section>
 
-      {/* POSITIONS & PNL */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ POSITIONS & PNL ]</h2>
-
-        <table className="terminal-table">
-          <thead>
-            <tr>
-              <th>Token</th>
-              <th>Amount</th>
-              <th>Avg Price</th>
-              <th>Cost Basis</th>
-              <th>Value (USD)</th>
-              <th>PNL (USD)</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {Object.values(positions).map((p: any) => (
-              <tr key={p.mint}>
-                <td className="font-mono">{p.mint}</td>
-                <td>{p.amount}</td>
-                <td>${p.avgPrice?.toFixed(6)}</td>
-                <td>${p.costBasis?.toFixed(2)}</td>
-                <td>${p.valueUsd?.toFixed(2)}</td>
-                <td className={p.pnlUsd >= 0 ? "text-green-300" : "text-red-400"}>
-                  {p.pnlUsd >= 0 ? "+" : ""}
-                  {p.pnlUsd.toFixed(2)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {/* TOKEN BALANCES */}
+      {/* TOKENS HELD */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ TOKENS HELD ]</h2>
 
@@ -129,6 +54,7 @@ export default function Home() {
                 <th>Token Mint</th>
                 <th>Amount</th>
                 <th>Price (USD)</th>
+                <th>Total Value (USD)</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +62,14 @@ export default function Home() {
                 <tr key={t.mint}>
                   <td className="font-mono">{t.mint}</td>
                   <td>{t.amount}</td>
-                  <td>{t.priceUsd ? `$${t.priceUsd}` : "N/A"}</td>
+                  <td>
+                    {t.priceUsd ? `$${t.priceUsd.toFixed(6)}` : "N/A"}
+                  </td>
+                  <td>
+                    {t.priceUsd
+                      ? `$${(t.priceUsd * t.amount).toFixed(2)}`
+                      : "N/A"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -144,7 +77,7 @@ export default function Home() {
         )}
       </section>
 
-      {/* TRADES */}
+      {/* RECENT TRADES */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ RECENT TOKEN MOVEMENT ]</h2>
 
@@ -153,17 +86,31 @@ export default function Home() {
         ) : (
           <div className="space-y-4">
             {data.trades.map((tr: any, i: number) => (
-              <div key={i} className="p-4 border border-[#00ff9d33] rounded">
+              <div
+                key={i}
+                className="p-4 border border-[#00ff9d33] rounded"
+              >
                 <p>
-                  <span className={tr.side === "BUY" ? "text-green-300 font-bold" : "text-red-400 font-bold"}>
+                  <span
+                    className={
+                      tr.side === "BUY"
+                        ? "text-green-300 font-bold"
+                        : "text-red-400 font-bold"
+                    }
+                  >
                     {tr.side}
                   </span>{" "}
                   {tr.amount} of {tr.mint}
                 </p>
 
-                <p className="text-sm text-[#00ffaacc]">{tr.time}</p>
+                <p className="text-sm text-[#00ffaacc]">
+                  {tr.time}
+                </p>
 
-                <a href={`https://solscan.io/tx/${tr.signature}`} target="_blank">
+                <a
+                  href={`https://solscan.io/tx/${tr.signature}`}
+                  target="_blank"
+                >
                   TX → {tr.signature.slice(0, 12)}…
                 </a>
               </div>
