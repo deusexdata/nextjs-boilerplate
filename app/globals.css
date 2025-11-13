@@ -1,7 +1,7 @@
 /* TERMINAL BACKGROUND */
 html, body {
   background: #000000;
-  color: #00ff9d;
+  color: #E4B300; /* Main text color */
   font-family: "JetBrains Mono", "Fira Code", monospace;
   padding: 0;
   margin: 0;
@@ -12,26 +12,26 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Green glow */
+/* Golden glow */
 .terminal-glow {
-  text-shadow: 0 0 6px rgba(0, 255, 157, 0.8), 0 0 12px rgba(0, 255, 157, 0.5);
+  text-shadow: 0 0 6px rgba(228, 179, 0, 0.8), 0 0 12px rgba(228, 179, 0, 0.5);
 }
 
 /* Terminal box */
 .terminal-box {
-  border: 1px solid #00ff9d55;
+  border: 1px solid rgba(212, 175, 55, 0.4);
   padding: 20px;
   border-radius: 8px;
-  background: rgba(0, 20, 10, 0.4);
-  box-shadow: 0 0 20px #00ff9d33 inset;
+  background: rgba(45, 30, 0, 0.4);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.2) inset;
 }
 
 /* Section headers */
 .terminal-title {
   font-size: 22px;
   margin-bottom: 10px;
-  color: #00ffc8;
-  text-shadow: 0 0 10px #00ffc8aa;
+  color: #D4AF37;
+  text-shadow: 0 0 10px rgba(228, 179, 0, 0.6);
 }
 
 /* Tables */
@@ -42,34 +42,35 @@ html, body {
 }
 
 .terminal-table th, .terminal-table td {
-  border: 1px solid #00ff9d33;
+  border: 1px solid rgba(212, 175, 55, 0.3);
   padding: 6px 10px;
 }
 
 .terminal-table th {
-  background: #003322aa;
-  color: #00ffc8;
+  background: rgba(80, 50, 0, 0.55);
+  color: #E4B300;
   text-align: left;
 }
 
 .terminal-table tr:nth-child(odd) {
-  background: #001a10aa;
+  background: rgba(40, 30, 0, 0.35);
 }
 
 .terminal-table tr:hover {
-  background: #004422aa;
+  background: rgba(100, 75, 0, 0.4);
 }
 
 /* Links */
 a {
-  color: #4ecbff;
+  color: #FFD56A;
   text-decoration: none;
 }
 
 a:hover {
-  color: #77e1ff;
-  text-shadow: 0 0 8px #77e1ff;
+  color: #FFE28A;
+  text-shadow: 0 0 8px #FFE08A;
 }
+
 /* CRT Scanline Overlay */
 .crt {
   position: relative;
@@ -85,9 +86,9 @@ a:hover {
   height: 100%;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0, 255, 157, 0.04) 0px,
-    rgba(0, 255, 157, 0.04) 2px,
-    rgba(0, 255, 157, 0.01) 3px
+    rgba(212, 175, 55, 0.04) 0px,
+    rgba(212, 175, 55, 0.04) 2px,
+    rgba(212, 175, 55, 0.02) 3px
   );
   mix-blend-mode: overlay;
   z-index: 50;
@@ -97,8 +98,10 @@ a:hover {
 .crt-screen {
   backdrop-filter: blur(0.6px);
   border-radius: 6px;
-  box-shadow: 0 0 20px #00ff9d33 inset, 0 0 10px #00ff9d22;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.2) inset,
+    0 0 10px rgba(212, 175, 55, 0.15);
 }
+
 /* Terminal-style social buttons */
 .terminal-buttons {
   display: flex;
@@ -108,22 +111,22 @@ a:hover {
 }
 
 .terminal-btn {
-  border: 1px solid #00ff9d55;
+  border: 1px solid rgba(212, 175, 55, 0.35);
   padding: 10px 16px;
   border-radius: 6px;
-  background: rgba(0, 20, 10, 0.4);
-  color: #00ff9d;
+  background: rgba(45, 30, 0, 0.5);
+  color: #D4AF37;
   font-family: "JetBrains Mono", monospace;
   cursor: pointer;
   text-decoration: none;
   font-size: 14px;
-  text-shadow: 0 0 6px rgba(0, 255, 157, 0.8);
+  text-shadow: 0 0 6px rgba(228, 179, 0, 0.7);
   transition: 0.15s ease-in-out;
 }
 
 .terminal-btn:hover {
-  background: rgba(0, 255, 157, 0.1);
-  border-color: #00ff9d;
-  box-shadow: 0 0 12px #00ff9d55;
-  color: #00ffcc;
+  background: rgba(228, 179, 0, 0.15);
+  border-color: #E4B300;
+  box-shadow: 0 0 12px rgba(228, 179, 0, 0.35);
+  color: #FFE08A;
 }
