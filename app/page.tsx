@@ -152,7 +152,39 @@ export default function Home() {
           </div>
         )}
       </section>
+        <div className="terminal-buttons">
+  <a
+    href="https://x.com/DEUS_EX_DATA"
+    target="_blank"
+    className="terminal-btn"
+  >
+    X / Twitter
+  </a>
 
+  <a
+    href="https://t.me/deus_ex_data"
+    target="_blank"
+    className="terminal-btn"
+  >
+    Telegram
+  </a>
+
+  <a
+    href="https://dexscreener.com/solana/7erW8znDzdCkbEtj2mxrtbRJbC1ewuAJs34LS3R1fJ51"
+    target="_blank"
+    className="terminal-btn"
+  >
+    Dex
+  </a>
+
+  <a
+    href="https://telegram.me/collablandbot?start=VFBDI1RFTCNDT01NIy0xMDAzMzM1ODk5Nzcx"
+    target="_blank"
+    className="terminal-btn"
+  >
+    Access Alerts
+  </a>
+</div>
     </main>
   );
 }

@@ -99,3 +99,31 @@ a:hover {
   border-radius: 6px;
   box-shadow: 0 0 20px #00ff9d33 inset, 0 0 10px #00ff9d22;
 }
+/* Terminal-style social buttons */
+.terminal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.terminal-btn {
+  border: 1px solid #00ff9d55;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: rgba(0, 20, 10, 0.4);
+  color: #00ff9d;
+  font-family: "JetBrains Mono", monospace;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 14px;
+  text-shadow: 0 0 6px rgba(0, 255, 157, 0.8);
+  transition: 0.15s ease-in-out;
+}
+
+.terminal-btn:hover {
+  background: rgba(0, 255, 157, 0.1);
+  border-color: #00ff9d;
+  box-shadow: 0 0 12px #00ff9d55;
+  color: #00ffcc;
+}
