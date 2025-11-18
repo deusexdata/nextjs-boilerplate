@@ -54,12 +54,6 @@ export default function Page() {
     data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
 
   // ----------------------------------------
-  // 3) BEST & WORST PERFORMER
-  // ----------------------------------------
-  const best = [...data.pnl].sort((a, b) => b.total - a.total)[0];
-  const worst = [...data.pnl].sort((a, b) => a.total - b.total)[0];
-
-  // ----------------------------------------
   // 4) WIN RATE (SELLS ONLY)
   // ----------------------------------------
   const sells = data.lastTrades.filter((t: any) => t.side === "SELL");
