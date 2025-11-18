@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { put, list, get } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -15,19 +15,32 @@ const FIFO_FILE = "deus/fifo.json";
 const PNL_FILE = "deus/pnl.json";
 
 // ─────────────────────────────────────────────
-// HELPERS — Load or Create File
+// READ FILE FROM BLOB — USING list() + fetch()
 // ─────────────────────────────────────────────
 async function loadJsonOrDefault<T>(path: string, defaultValue: T): Promise<T> {
   try {
-    const file = await get(path);
-    if (!file) return defaultValue;
-    const text = await file.text();
-    return JSON.parse(text);
-  } catch {
+    const files = await list({ prefix: path });
+
+    if (!files.blobs.length) {
+      return defaultValue;
+    }
+
+    // There should be exactly 1 file at this path
+    const fileUrl = files.blobs[0].url;
+    const res = await fetch(fileUrl);
+
+    if (!res.ok) return defaultValue;
+
+    return (await res.json()) as T;
+  } catch (e) {
+    console.error("Blob load error:", e);
     return defaultValue;
   }
 }
 
+// ─────────────────────────────────────────────
+// WRITE FILE TO BLOB
+// ─────────────────────────────────────────────
 async function saveJson(path: string, data: any) {
   await put(path, JSON.stringify(data, null, 2), {
     access: "public",
@@ -36,7 +49,7 @@ async function saveJson(path: string, data: any) {
 }
 
 // ─────────────────────────────────────────────
-// DEXSCREENER PRICE
+// FETCH PRICE FROM DEXSCREENER
 // ─────────────────────────────────────────────
 async function fetchDexPrice(mint: string): Promise<number | null> {
   try {
@@ -44,11 +57,12 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
       { cache: "no-store" }
     );
+
     if (!res.ok) return null;
 
     const json = await res.json();
     if (Array.isArray(json) && json.length > 0) {
-      return Number(json[0].priceUsd || 0);
+      return Number(json[0]?.priceUsd || 0);
     }
     return null;
   } catch {
@@ -57,7 +71,7 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
 }
 
 // ─────────────────────────────────────────────
-// TRUE FIFO ENGINE
+// FIFO ENGINE
 // ─────────────────────────────────────────────
 type FifoBatch = {
   amount: number;
@@ -75,71 +89,56 @@ type PnlState = Record<
   }
 >;
 
-function applyNewTradeToFIFO(
-  trade: any,
-  fifo: FifoState,
-  pnl: PnlState
-) {
-  const time = new Date(trade.time).getTime();
+function applyNewTrade(trade: any, fifo: FifoState, pnl: PnlState) {
+  const timestamp = new Date(trade.time).getTime();
 
-  // Detect BUY or SELL
   const isBuy =
     trade.from.token.symbol === "SOL" &&
     trade.to.token.symbol !== "SOL";
 
   const token = isBuy ? trade.to.token : trade.from.token;
+  const mint = token.mint;
   const amount = isBuy ? trade.to.amount : trade.from.amount;
   const priceUsd = trade.price.usd;
-  const priceSol = trade.price.sol;
-  const mint = token.mint;
 
   if (!fifo[mint]) fifo[mint] = [];
   if (!pnl[mint]) pnl[mint] = { realizedPnlUsd: 0, realizedPnlSol: 0 };
 
-  // BUY → push onto FIFO
+  // BUY → add batch
   if (isBuy) {
     fifo[mint].push({
       amount,
       priceUsd,
-      timestamp: time,
+      timestamp,
     });
     return;
   }
 
-  // SELL → drain FIFO
-  let remainingToSell = amount;
+  // SELL → apply FIFO
+  let remaining = amount;
 
-  while (remainingToSell > 0 && fifo[mint].length > 0) {
+  while (remaining > 0 && fifo[mint].length > 0) {
     const batch = fifo[mint][0];
 
-    if (batch.amount > remainingToSell) {
-      // Partial consume
-      const cost = remainingToSell * batch.priceUsd;
-      const revenue = remainingToSell * priceUsd;
-      const profitUsd = revenue - cost;
-
-      pnl[mint].realizedPnlUsd += profitUsd;
-      pnl[mint].realizedPnlSol += profitUsd / priceUsd;
-
-      batch.amount -= remainingToSell;
-      remainingToSell = 0;
+    if (batch.amount > remaining) {
+      const cost = remaining * batch.priceUsd;
+      const revenue = remaining * priceUsd;
+      pnl[mint].realizedPnlUsd += revenue - cost;
+      batch.amount -= remaining;
+      remaining = 0;
     } else {
-      // Full consume batch
       const cost = batch.amount * batch.priceUsd;
       const revenue = batch.amount * priceUsd;
-      const profitUsd = revenue - cost;
+      pnl[mint].realizedPnlUsd += revenue - cost;
 
-      pnl[mint].realizedPnlUsd += profitUsd;
-      pnl[mint].realizedPnlSol += profitUsd / priceUsd;
-
-      remainingToSell -= batch.amount;
-      fifo[mint].shift(); // remove batch
+      remaining -= batch.amount;
+      fifo[mint].shift();
     }
   }
 }
 
 // ─────────────────────────────────────────────
-// MAIN API HANDLER
+// API ROUTE HANDLER
 // ─────────────────────────────────────────────
 export async function GET() {
   try {
@@ -150,29 +149,22 @@ export async function GET() {
       );
     }
 
-    // Connect RPC
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
 
-    // ───────────────────────
-    // Load saved FIFO & PNL
-    // ───────────────────────
+    // Load saved FIFO, PNL, trades
     const fifo: FifoState = await loadJsonOrDefault(FIFO_FILE, {});
     const pnl: PnlState = await loadJsonOrDefault(PNL_FILE, {});
     const savedTrades: any[] = await loadJsonOrDefault(TRADES_FILE, []);
 
-    // Track known signatures to detect new trades
-    const knownSigs = new Set(savedTrades.map((t) => t.tx));
+    const known = new Set(savedTrades.map((t) => t.tx));
 
-    // ─────────────────────────────
-    // Fetch latest trades (SolanaTracker)
-    // ─────────────────────────────
+    // Fetch SolanaTracker trades
     const st = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades`,
       {
         headers: {
           "x-api-key": "f6854be6-b87b-4b55-8447-d6e269bfe816",
-          accept: "application/json",
         },
         cache: "no-store",
       }
@@ -181,29 +173,24 @@ export async function GET() {
     let latestTrades: any[] = [];
     if (st.ok) latestTrades = await st.json();
 
-    // ────────────────────────────
-    // FIFO: Apply ONLY new trades
-    // ────────────────────────────
+    // Apply newly found trades
     for (const tr of latestTrades) {
-      if (knownSigs.has(tr.tx)) continue;
-      applyNewTradeToFIFO(tr, fifo, pnl);
-      savedTrades.push(tr);
+      if (!known.has(tr.tx)) {
+        applyNewTrade(tr, fifo, pnl);
+        savedTrades.push(tr);
+      }
     }
 
-    // Save updated state
+    // Save updated storage
     await saveJson(FIFO_FILE, fifo);
     await saveJson(PNL_FILE, pnl);
     await saveJson(TRADES_FILE, savedTrades);
 
-    // ─────────────────────────────
-    // Get SOL Balance
-    // ─────────────────────────────
+    // Fetch SOL balance
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // ─────────────────────────────
-    // Get SPL Token Balances
-    // ─────────────────────────────
+    // SPL balances
     const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
       pubkey,
       {
@@ -216,13 +203,12 @@ export async function GET() {
     const rawTokens = tokenAccounts.value
       .map((acc) => {
         const info: any = acc.account.data.parsed.info;
-        const amount = info.tokenAmount.uiAmount as number | null;
-        const mint = info.mint as string;
-        return { mint, amount: amount || 0 };
+        const amount = info.tokenAmount.uiAmount || 0;
+        const mint = info.mint;
+        return { mint, amount };
       })
       .filter((t) => t.amount > 0);
 
-    // Fetch USD prices
     const tokens = await Promise.all(
       rawTokens.map(async (t) => ({
         ...t,
@@ -230,10 +216,11 @@ export async function GET() {
       }))
     );
 
-    // Compute portfolio value
-    const portfolioValue = tokens.reduce((sum, t) => {
-      return sum + (t.priceUsd ? t.priceUsd * t.amount : 0);
-    }, 0);
+    const portfolioValue = tokens.reduce(
+      (sum, t) =>
+        sum + (t.priceUsd ? t.priceUsd * t.amount : 0),
+      0
+    );
 
     return NextResponse.json({
       wallet: BOT_WALLET,
@@ -244,14 +231,14 @@ export async function GET() {
       fifo,
       pnl,
       totalRealizedPnlUsd: Object.values(pnl).reduce(
-        (a, b) => a + b.realizedPnlUsd,
+        (a: number, b: any) => a + b.realizedPnlUsd,
         0
       ),
     });
   } catch (err) {
-    console.error("Wallet API error:", err);
+    console.error("API ERROR:", err);
     return NextResponse.json(
-      { error: "Failed to load wallet data" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
