@@ -36,7 +36,7 @@ export default function Page() {
   }
 
   // Sort PNL from highest → lowest
-  const sortedPnl = [...data.pnl].sort((a, b) => b.total - a.total);
+  const sortedPnl = [...data.pnl].sort((a, b) => b.lastTrade - a.lastTrade);
 
   // Paginate PNL
   const paginatedPnl = sortedPnl.slice(

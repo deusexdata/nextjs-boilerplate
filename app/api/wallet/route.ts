@@ -86,16 +86,21 @@ export async function GET() {
     if (pnlRes.ok) pnlData = await pnlRes.json();
 
     // Normalize PNL items
-    let pnlArray: NormalizedPnl[] = Object.entries(pnlData.tokens || {}).map(
-      ([mint, stats]) => ({
-        mint,
-        name: stats.name ?? "",
-        realized: Number(stats.realized ?? 0),
-        unrealized: Number(stats.unrealized ?? 0),
-        total: Number(stats.total ?? 0),
-        lastTrade: Number(stats.last_trade_time ?? 0), // << IMPORTANT
-      })
-    );
+let pnlArray: NormalizedPnl[] = Object.entries(pnlData.tokens || {}).map(
+  ([mint, stats]: any) => ({
+    mint,
+    name: stats.name ?? "",
+    realized: Number(stats.realized ?? 0),
+    unrealized: Number(stats.unrealized ?? 0),
+    total: Number(stats.total ?? 0),
+
+    // IMPORTANT — SolanaTracker key is EXACTLY: last_trade_time
+    lastTrade: Number(stats.last_trade_time ?? 0),
+  })
+);
+
+// Sort newest first by last trade time
+pnlArray.sort((a, b) => b.lastTrade - a.lastTrade);
 
     // Sort newest first by last trade time
     pnlArray = pnlArray.sort((a, b) => b.lastTrade - a.lastTrade);
