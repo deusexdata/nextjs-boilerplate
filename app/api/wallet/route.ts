@@ -1,25 +1,16 @@
-export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 const RPC_URL = process.env.SOLANA_RPC_URL!;
 const BOT_WALLET = process.env.BOT_WALLET_ADDRESS!;
-const API_KEY = "f6854be6-b87b-4b55-8447-d6e269bfe816";
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
-// Fetch price from DexScreener
 async function fetchDexPrice(mint: string): Promise<number | null> {
   try {
     const res = await fetch(
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
       { cache: "no-store" }
     );
-
-    if (!res.ok) {
-      console.error("DexScreener error:", res.status, res.statusText);
-      return null;
-    }
 
     const json = await res.json();
     if (Array.isArray(json) && json.length > 0) {
@@ -28,20 +19,13 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
 
     return null;
   } catch (e) {
-    console.error("DexScreener fetch error:", e);
+    console.error("Dex error:", e);
     return null;
   }
 }
 
 export async function GET() {
   try {
-    if (!RPC_URL || !BOT_WALLET) {
-      return NextResponse.json(
-        { error: "Missing RPC or Wallet env vars" },
-        { status: 500 }
-      );
-    }
-
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
 
@@ -49,74 +33,64 @@ export async function GET() {
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // SPL token balances
-    const tokenAccounts =
-      await connection.getParsedTokenAccountsByOwner(pubkey, {
-        programId: new PublicKey(
-          "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        ),
-      });
+    // SPL tokens
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
+      programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+    });
 
     const rawTokens = tokenAccounts.value
       .map((acc) => {
-        const info: any = acc.account.data.parsed.info;
-        const amount = Number(info.tokenAmount.uiAmount || 0);
-        const mint = String(info.mint);
-        return { mint, amount };
+        const info = acc.account.data.parsed.info;
+        return {
+          mint: info.mint,
+          amount: Number(info.tokenAmount.uiAmount || 0),
+        };
       })
       .filter((t) => t.amount > 0);
 
     const tokens = await Promise.all(
-      rawTokens.map(async (t) => ({
-        mint: t.mint,
-        amount: t.amount,
-        priceUsd: await fetchDexPrice(t.mint),
-      }))
+      rawTokens.map(async (t) => {
+        const priceUsd = await fetchDexPrice(t.mint);
+        return {
+          mint: t.mint,
+          amount: t.amount,
+          priceUsd,
+        };
+      })
     );
 
-    // Portfolio total USD
-    const portfolioValue = tokens.reduce(
-      (sum, t) =>
-        t.priceUsd ? sum + t.priceUsd * t.amount : sum,
-      0
-    );
+    const portfolioValue = tokens.reduce((sum, t) => {
+      return sum + (t.priceUsd ? t.priceUsd * t.amount : 0);
+    }, 0);
 
-    // Live trades from SolanaTracker
-    const resp = await fetch(
+    // -------- FIXED SOLANATRACKER API PARSING ----------
+    const tRes = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades`,
       {
-        headers: { "x-api-key": API_KEY, accept: "application/json" },
+        headers: { "x-api-key": "f6854be6-b87b-4b55-8447-d6e269bfe816" },
         cache: "no-store",
       }
     );
 
     let trades: any[] = [];
-    if (resp.ok) {
-      trades = await resp.json();
-    } else {
-      console.error("SolanaTracker error:", resp.status, resp.statusText);
+    if (tRes.ok) {
+      const body = await tRes.json(); // body = { trades:[...] }
+      trades = body.trades || [];
     }
+    // ----------------------------------------------------
 
-    // Return a SAFE payload with all required fields
     return NextResponse.json({
       wallet: BOT_WALLET,
       solBalance,
-      tokens,
       portfolioValue,
-      trades: trades.slice(0, 25),
-
-      // Placeholder fields to avoid frontend crash
-      totalRealizedPnlUsd: 0,
-      pnl: {},
-      fifo: {},
+      tokens,
+      trades: trades.slice(0, 25)
     });
+
   } catch (err: any) {
-    console.error("Wallet API Error:", err);
+    console.error("API Error:", err);
     return NextResponse.json(
-      {
-        error: "Internal server error",
-        message: err?.message,
-      },
+      { error: "Internal server error", message: err.message },
       { status: 500 }
     );
   }
