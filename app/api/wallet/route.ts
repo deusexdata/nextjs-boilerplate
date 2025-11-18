@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: Request, { params }: { params: { wallet: string } }) {
+export async function GET(request: NextRequest, context: { params: { wallet: string } }) {
   try {
-    const wallet = params.wallet;
+    const wallet = context.params.wallet;
 
     if (!wallet) {
-      return NextResponse.json({ error: "Wallet address is required" }, { status: 400 });
+      return NextResponse.json({ error: "Missing wallet address" }, { status: 400 });
     }
 
     const apiKey = process.env.SOLTRACKER_API_KEY;
@@ -16,64 +16,52 @@ export async function GET(req: Request, { params }: { params: { wallet: string }
     const url = `https://data.solanatracker.io/wallet/${wallet}/trades`;
 
     const response = await fetch(url, {
-      headers: { "x-api-key": apiKey }
+      headers: { "x-api-key": apiKey },
+      next: { revalidate: 5 },
     });
 
     if (!response.ok) {
-      const text = await response.text();
       return NextResponse.json(
-        { error: "SolanaTracker error", message: text },
+        { error: "SolanaTracker error", message: await response.text() },
         { status: response.status }
       );
     }
 
     const json = await response.json();
-
-    // Ensure the response has trades
     const trades = json?.trades ?? [];
 
-    // Normalize trades for frontend usage
-    const parsedTrades = trades.map((t: any) => ({
+    const parsed = trades.map((t: any) => ({
       txid: t.tx,
       timestamp: t.time,
       program: t.program,
-      fromSymbol: t.from.token.symbol,
-      toSymbol: t.to.token.symbol,
-      fromAmount: t.from.amount,
-      toAmount: t.to.amount,
-      priceUsd: t.price?.usd ?? null,
-      volumeUsd: t.volume?.usd ?? 0,
-      fromImage: t.from.token.image,
-      toImage: t.to.token.image,
-      tokenName: t.to.token.name,
       tokenSymbol: t.to.token.symbol,
+      tokenName: t.to.token.name,
+      volumeUsd: t.volume.usd,
+      isBuy: t.from.token.symbol === "SOL",
+      isSell: t.to.token.symbol === "SOL",
     }));
 
-    // Basic PnL calculation
-    let totalBuys = 0;
-    let totalSells = 0;
+    let buys = 0;
+    let sells = 0;
 
-    for (const t of parsedTrades) {
-      const isBuy = t.fromSymbol === "SOL"; // SOL → token
-      const isSell = t.toSymbol === "SOL";  // token → SOL
+    parsed.forEach((t) => {
+      if (t.isBuy) buys += t.volumeUsd;
+      if (t.isSell) sells += t.volumeUsd;
+    });
 
-      if (isBuy) totalBuys += t.volumeUsd;
-      if (isSell) totalSells += t.volumeUsd;
-    }
-
-    const pnl = totalSells - totalBuys;
+    const pnl = sells - buys;
 
     return NextResponse.json({
       wallet,
-      trades: parsedTrades,
+      trades: parsed,
       pnl,
-      totalBuys,
-      totalSells
+      totalBuys: buys,
+      totalSells: sells,
     });
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: "Server error", message: err.message },
+      { error: "Server failure", message: err.message },
       { status: 500 }
     );
   }
