@@ -2,12 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Token = {
-  mint: string;
-  amount: number;
-  priceUsd?: number | null;
-};
-
+type Token = { mint: string; amount: number; priceUsd?: number | null };
 type Trade = {
   tx: string;
   time: string;
@@ -17,12 +12,11 @@ type Trade = {
   from: { token: any; amount: number };
   to: { token: any; amount: number };
 };
-
 type WalletData = {
   wallet: string;
   solBalance: number;
   tokens: Token[];
-  recentTrades: Trade[];
+  trades: Trade[];
 };
 
 export default function HomePage() {
@@ -33,6 +27,7 @@ export default function HomePage() {
     try {
       const res = await fetch("/api/wallet");
       const json = await res.json();
+      if (!json) return;
       setData(json);
 
       let total = 0;
@@ -40,8 +35,8 @@ export default function HomePage() {
         if (t.priceUsd) total += t.amount * t.priceUsd;
       });
       setPortfolioValue(total);
-    } catch (e) {
-      console.error("Fetch error:", e);
+    } catch (err) {
+      console.error("Frontend fetch error:", err);
     }
   }
 
@@ -61,7 +56,6 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen p-8 space-y-12 terminal-glow crt crt-screen">
-      {/* HEADER */}
       <h1 className="text-4xl mb-2 terminal-glow">
         ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
       </h1>
@@ -69,19 +63,16 @@ export default function HomePage() {
         Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
       </p>
 
-      {/* SOL BALANCE */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ SOL BALANCE ]</h2>
         <p className="text-2xl">{data.solBalance.toFixed(4)} SOL</p>
       </section>
 
-      {/* PORTFOLIO VALUE */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ TOTAL PORTFOLIO VALUE ]</h2>
         <p className="text-3xl">${portfolioValue.toFixed(2)}</p>
       </section>
 
-      {/* TOKENS HELD */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ TOKENS HELD ]</h2>
 
@@ -104,9 +95,7 @@ export default function HomePage() {
                   <td>{t.amount}</td>
                   <td>{t.priceUsd ? `$${t.priceUsd.toFixed(6)}` : "N/A"}</td>
                   <td>
-                    {t.priceUsd
-                      ? `$${(t.amount * t.priceUsd).toFixed(2)}`
-                      : "N/A"}
+                    {t.priceUsd ? `$${(t.amount * t.priceUsd).toFixed(2)}` : "N/A"}
                   </td>
                 </tr>
               ))}
@@ -115,11 +104,10 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* RECENT TRADES FROM SOLANATRACKER */}
       <section className="terminal-box">
-        <h2 className="terminal-title">[ RECENT TRADES — SOLANATRACKER ]</h2>
+        <h2 className="terminal-title">[ RECENT TRADES ]</h2>
 
-        {!data.recentTrades || data.recentTrades.length === 0 ? (
+        {!data.trades || data.trades.length === 0 ? (
           <p>No recent trades.</p>
         ) : (
           <table className="terminal-table">
@@ -136,51 +124,34 @@ export default function HomePage() {
               </tr>
             </thead>
             <tbody>
-              {data.recentTrades.slice(0, 20).map((tr: any) => {
-                const time = new Date(tr.time).toLocaleString();
-
+              {data.trades.slice(0, 20).map((tr) => {
+                const timeStr = new Date(tr.time).toLocaleString();
                 const side =
-                  tr.from.token.symbol === "SOL" &&
-                  tr.to.token.symbol !== "SOL"
+                  tr.from.token.symbol === "SOL" && tr.to.token.symbol !== "SOL"
                     ? "BUY"
                     : "SELL";
-
-                const token =
-                  side === "BUY" ? tr.to.token : tr.from.token;
-
-                const amount =
-                  side === "BUY" ? tr.to.amount : tr.from.amount;
+                const token = side === "BUY" ? tr.to.token : tr.from.token;
+                const amount = side === "BUY" ? tr.to.amount : tr.from.amount;
 
                 return (
                   <tr key={tr.tx}>
                     <td>
                       {token.symbol}
                       <br />
-                      <span className="text-xs opacity-60">
-                        {token.name}
-                      </span>
+                      <span className="text-xs opacity-60">{token.name}</span>
                     </td>
-
                     <td
                       className={
-                        side === "BUY"
-                          ? "text-[#E4B300] font-bold"
-                          : "text-red-400 font-bold"
+                        side === "BUY" ? "text-[#E4B300] font-bold" : "text-red-400 font-bold"
                       }
                     >
                       {side}
                     </td>
-
                     <td>{Number(amount).toLocaleString()}</td>
-
                     <td>${tr.volume.usd.toFixed(2)}</td>
-
                     <td>${tr.price.usd.toFixed(8)}</td>
-
                     <td>{tr.program}</td>
-
-                    <td>{time}</td>
-
+                    <td>{timeStr}</td>
                     <td>
                       <a
                         href={`https://solscan.io/tx/${tr.tx}`}
@@ -198,32 +169,16 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* SOCIAL BUTTONS */}
       <div className="terminal-buttons">
-        <a
-          href="https://twitter.com/DeusVisionAI"
-          target="_blank"
-          className="terminal-btn"
-        >
+        <a href="https://twitter.com/DeusVisionAI" target="_blank" className="terminal-btn">
           X / Twitter
         </a>
-
-        <a
-          href="https://t.me/DeusVisionAI"
-          target="_blank"
-          className="terminal-btn"
-        >
+        <a href="https://t.me/DeusVisionAI" target="_blank" classClassName="terminal-btn">
           Telegram
         </a>
-
-        <a
-          href="https://dexscreener.com"
-          target="_blank"
-          className="terminal-btn"
-        >
+        <a href="https://dexscreener.com" target="_blank" className="terminal-btn">
           Dexscreener
         </a>
-
         <a href="/alerts" target="_blank" className="terminal-btn">
           Access Alerts
         </a>
