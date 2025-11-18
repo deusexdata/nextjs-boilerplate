@@ -15,6 +15,7 @@ interface TokenPnl {
   realized?: number;
   unrealized?: number;
   total?: number;
+  last_trade_time?: number;   // IMPORTANT
 }
 
 interface NormalizedPnl {
@@ -23,19 +24,20 @@ interface NormalizedPnl {
   realized: number;
   unrealized: number;
   total: number;
+  lastTrade: number;          // IMPORTANT
 }
 
 // ----------------------------
-// Types for Trades endpoint
+// Trades endpoint
 // ----------------------------
 interface RawTrade {
   tx: string;
-  time?: number;           // ms timestamp
-  timestamp?: number;      // sec timestamp fallback
+  time?: number;
+  timestamp?: number;
   price?: { usd?: number; usdc?: number; usdt?: number };
   volume?: { usd?: number };
   from?: { token?: { symbol?: string; mint?: string }; amount?: number };
-  to?:   { token?: { symbol?: string; mint?: string }; amount?: number };
+  to?: { token?: { symbol?: string; mint?: string }; amount?: number };
 }
 
 interface NormalizedTrade {
@@ -61,11 +63,12 @@ export async function GET() {
     // ----------------------------------------------
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
+
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
     // ----------------------------------------------
-    // 2) PNL ENDPOINT
+    // 2) GET PNL DATA
     // ----------------------------------------------
     const pnlRes = await fetch(
       `https://data.solanatracker.io/pnl/${BOT_WALLET}`,
@@ -82,18 +85,23 @@ export async function GET() {
 
     if (pnlRes.ok) pnlData = await pnlRes.json();
 
-    const pnlArray: NormalizedPnl[] = Object.entries(
-      pnlData.tokens || {}
-    ).map(([mint, stats]) => ({
-      mint,
-      name: stats.name ?? "",
-      realized: Number(stats.realized ?? 0),
-      unrealized: Number(stats.unrealized ?? 0),
-      total: Number(stats.total ?? 0),
-    }));
+    // Normalize PNL items
+    let pnlArray: NormalizedPnl[] = Object.entries(pnlData.tokens || {}).map(
+      ([mint, stats]) => ({
+        mint,
+        name: stats.name ?? "",
+        realized: Number(stats.realized ?? 0),
+        unrealized: Number(stats.unrealized ?? 0),
+        total: Number(stats.total ?? 0),
+        lastTrade: Number(stats.last_trade_time ?? 0), // << IMPORTANT
+      })
+    );
+
+    // Sort newest first by last trade time
+    pnlArray = pnlArray.sort((a, b) => b.lastTrade - a.lastTrade);
 
     // ----------------------------------------------
-    // 3) TRADES ENDPOINT
+    // 3) RECENT TRADES
     // ----------------------------------------------
     const tradesRes = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=25`,
@@ -106,19 +114,15 @@ export async function GET() {
     let trades: RawTrade[] = [];
     if (tradesRes.ok) {
       const raw = await tradesRes.json();
-      trades = Array.isArray(raw) ? raw : (raw.trades ?? []);
+      trades = Array.isArray(raw) ? raw : raw.trades ?? [];
     }
 
-    // ----------------------------------------------
-    // FIXED TRADE LOGIC
-    // ----------------------------------------------
     const lastTrades: NormalizedTrade[] = trades.map((t) => {
       const isBuy = t.from?.token?.symbol === "SOL";
 
-      // Correct timestamp (ms)
-      const time = t.time ?? (t.timestamp ? t.timestamp * 1000 : 0);
+      const time =
+        t.time ?? (t.timestamp ? t.timestamp * 1000 : Date.now());
 
-      // Select the traded token (non-SOL token)
       const traded = isBuy ? t.to?.token : t.from?.token;
 
       const mint =
@@ -126,12 +130,10 @@ export async function GET() {
         traded?.symbol ||
         "UNKNOWN";
 
-      // Always use the token-side amount (non-SOL)
       const amount = Number(
         isBuy ? t.to?.amount : t.from?.amount
       ) || 0;
 
-      // Use volume.usd (correct value for the trade)
       const priceUsd =
         Number(t.volume?.usd) ||
         Number(t.price?.usd) ||
