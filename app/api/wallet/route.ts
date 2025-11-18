@@ -7,7 +7,7 @@ const API_KEY = "f6854be6-b87b-4b55-8447-d6e269bfe816";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
-// Fetch token price from DexScreener
+// DexScreener price fetch
 async function fetchDexPrice(mint: string): Promise<number | null> {
   try {
     const url = `https://api.dexscreener.com/tokens/v1/solana/${mint}`;
@@ -21,7 +21,7 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
 
     return null;
   } catch (e) {
-    console.error("Dex price error:", e);
+    console.log("Dex error:", e);
     return null;
   }
 }
@@ -30,19 +30,19 @@ export async function GET() {
   try {
     if (!RPC_URL || !BOT_WALLET) {
       return NextResponse.json(
-        { error: "Missing RPC or wallet env variables" },
+        { error: "Missing RPC or wallet envs" },
         { status: 500 }
       );
     }
 
-    // ────────── SOL BALANCE ──────────
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
 
+    // ---- SOL BALANCE ----
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // ────────── TOKEN BALANCES ──────────
+    // ---- TOKENS ----
     const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
       pubkey,
       { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
@@ -64,16 +64,16 @@ export async function GET() {
           mint: t.mint,
           amount: t.amount,
           priceUsd,
-          valueUsd: priceUsd ? priceUsd * t.amount : 0,
+          valueUsd: priceUsd ? t.amount * priceUsd : 0,
         };
       })
     );
 
     const portfolioValue = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
 
-    // ────────── TRADES VIA SOLANATRACKER ──────────
-    const tRes = await fetch(
-      `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades`,
+    // ---- TRADES FROM SOLANATRACKER ----
+    const tradesRes = await fetch(
+      `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=50`,
       {
         headers: { "x-api-key": API_KEY },
         cache: "no-store",
@@ -81,21 +81,23 @@ export async function GET() {
     );
 
     let trades: any[] = [];
-    if (tRes.ok) {
-      const json = await tRes.json();
-      if (Array.isArray(json)) {
-        trades = json.map((t: any) => ({
-          tx: t.tx,
-          time: t.timestamp,
-          priceUsd: t.price?.usd || 0,
-          mint:
-            t.from.token.symbol === "SOL"
-              ? t.to.token.mint
-              : t.from.token.mint,
-          amount:
-            t.from.token.symbol === "SOL" ? t.to.amount : t.from.amount,
-          side: t.from.token.symbol === "SOL" ? "BUY" : "SELL",
-        }));
+    if (tradesRes.ok) {
+      const arr = await tradesRes.json();
+
+      if (Array.isArray(arr)) {
+        trades = arr.map((t: any) => {
+          const isBuy =
+            t.from.token.mint === "So11111111111111111111111111111111111111112";
+
+          return {
+            tx: t.tx,
+            time: t.timestamp,
+            priceUsd: t.price?.usd ?? 0,
+            mint: isBuy ? t.to.token.mint : t.from.token.mint,
+            amount: isBuy ? t.to.amount : t.from.amount,
+            side: isBuy ? "BUY" : "SELL",
+          };
+        });
       }
     }
 
@@ -104,15 +106,12 @@ export async function GET() {
       solBalance,
       tokens,
       portfolioValue,
-      trades: trades.slice(0, 25),
+      trades,
     });
   } catch (err: any) {
-    console.error("API Error:", err);
+    console.error(err);
     return NextResponse.json(
-      {
-        error: "Internal server error",
-        message: err.message,
-      },
+      { error: "Internal server error", message: err.message },
       { status: 500 }
     );
   }
