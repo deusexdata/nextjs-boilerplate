@@ -5,7 +5,6 @@ export default function Page() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Pagination states
   const PAGE_SIZE = 10;
   const [pnlPage, setPnlPage] = useState(0);
   const [tradePage, setTradePage] = useState(0);
@@ -35,16 +34,15 @@ export default function Page() {
     );
   }
 
-  // Sort PNL by lastTrade (newest → oldest)
+  // Sort PNL by lastTrade timestamp (newest → oldest)
   const sortedPnl = [...data.pnl].sort((a, b) => b.lastTrade - a.lastTrade);
 
-  // Paginate PNL
+  // Pagination
   const paginatedPnl = sortedPnl.slice(
     pnlPage * PAGE_SIZE,
     (pnlPage + 1) * PAGE_SIZE
   );
 
-  // Paginate trades
   const paginatedTrades = data.lastTrades.slice(
     tradePage * PAGE_SIZE,
     (tradePage + 1) * PAGE_SIZE
@@ -53,9 +51,7 @@ export default function Page() {
   const totalPnl =
     data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
 
-  // ─────────────────────────────────────────────
-  // ⭐ BEST & WORST PERFORMER
-  // ─────────────────────────────────────────────
+  // BEST & WORST performers
   const bestToken =
     data.pnl.length > 0
       ? [...data.pnl].sort((a, b) => b.total - a.total)[0]
@@ -66,46 +62,12 @@ export default function Page() {
       ? [...data.pnl].sort((a, b) => a.total - b.total)[0]
       : null;
 
-  // ─────────────────────────────────────────────
-  // ⭐ WIN RATE (wins / (wins + losses))
-  // ─────────────────────────────────────────────
-  const wins = data.pnl.filter((t: any) => t.total > 0).length;
-  const losses = data.pnl.filter((t: any) => t.total < 0).length;
-  const countedTokens = wins + losses;
-  const winRate =
-    countedTokens > 0 ? (wins / countedTokens) * 100 : 0;
-
-  // ─────────────────────────────────────────────
-  // ⭐ TRADE SUMMARY
-  // ─────────────────────────────────────────────
-  const buyCount = data.lastTrades.filter(
-    (t: any) => t.side === "BUY"
-  ).length;
-  const sellCount = data.lastTrades.filter(
-    (t: any) => t.side === "SELL"
-  ).length;
-
-  const totalVolumeUsd = data.lastTrades.reduce(
-    (sum: number, t: any) => sum + (t.priceUsd ?? 0),
-    0
-  );
-
-  const maxTrade =
-    data.lastTrades.length > 0
-      ? data.lastTrades.reduce(
-          (max: any, t: any) =>
-            t.priceUsd > max.priceUsd ? t : max,
-          { priceUsd: 0 }
-        )
-      : null;
-
-  // Latest trade time (UTC)
+  // Latest trade (UTC)
   const latestTradeTime =
     data.lastTrades.length > 0
       ? Math.max(...data.lastTrades.map((t: any) => t.time || 0))
       : null;
 
-  // Helper to format UTC date/time
   const formatUtc = (ts: number) =>
     new Date(ts).toLocaleString("en-GB", {
       timeZone: "UTC",
@@ -115,8 +77,24 @@ export default function Page() {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
-      hour12: false,
+      hour12: false
     });
+
+  // Trade Summary
+  const buyCount = data.lastTrades.filter((t: any) => t.side === "BUY").length;
+  const sellCount = data.lastTrades.filter((t: any) => t.side === "SELL").length;
+  const totalVolumeUsd = data.lastTrades.reduce(
+    (sum: number, t: any) => sum + (t.priceUsd ?? 0),
+    0
+  );
+
+  const maxTrade =
+    data.lastTrades.length > 0
+      ? data.lastTrades.reduce(
+          (max: any, t: any) => (t.priceUsd > max.priceUsd ? t : max),
+          { priceUsd: 0 }
+        )
+      : null;
 
   return (
     <main className="min-h-screen p-8 space-y-12">
@@ -149,7 +127,7 @@ export default function Page() {
         </p>
       </section>
 
-      {/* ⭐ PERFORMANCE SUMMARY (Best/Worst + Win Rate + Last Trade) */}
+      {/* PERFORMANCE SUMMARY */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ PERFORMANCE SUMMARY ]</h2>
 
@@ -178,28 +156,15 @@ export default function Page() {
             </p>
           )}
 
-          <p>
-            🏆 <b>Win Rate:</b>{" "}
-            <span
-              className={
-                winRate >= 50 ? "text-green-300" : "text-red-300"
-              }
-            >
-              {winRate.toFixed(1)}%
-            </span>{" "}
-            ({wins}/{countedTokens})
-          </p>
-
           {latestTradeTime && (
             <p>
-              🕒 <b>Last Trade (UTC):</b>{" "}
-              {formatUtc(latestTradeTime)}
+              🕒 <b>Last Trade (UTC):</b> {formatUtc(latestTradeTime)}
             </p>
           )}
         </div>
       </section>
 
-      {/* ⭐ TRADE SUMMARY BOX */}
+      {/* TRADE SUMMARY */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ TRADE SUMMARY ]</h2>
 
@@ -235,29 +200,17 @@ export default function Page() {
               <tr key={t.mint}>
                 <td className="font-mono">{t.mint}</td>
 
-                <td
-                  className={
-                    t.realized >= 0 ? "text-green-300" : "text-red-400"
-                  }
-                >
+                <td className={t.realized >= 0 ? "text-green-300" : "text-red-400"}>
                   {t.realized >= 0 ? "+" : ""}
                   {t.realized.toFixed(2)}
                 </td>
 
-                <td
-                  className={
-                    t.unrealized >= 0 ? "text-green-300" : "text-red-400"
-                  }
-                >
+                <td className={t.unrealized >= 0 ? "text-green-300" : "text-red-400"}>
                   {t.unrealized >= 0 ? "+" : ""}
                   {t.unrealized.toFixed(2)}
                 </td>
 
-                <td
-                  className={
-                    t.total >= 0 ? "text-green-300" : "text-red-400"
-                  }
-                >
+                <td className={t.total >= 0 ? "text-green-300" : "text-red-400"}>
                   {t.total >= 0 ? "+" : ""}
                   {t.total.toFixed(2)}
                 </td>
@@ -302,36 +255,31 @@ export default function Page() {
             </tr>
           </thead>
 
-        <tbody>
-          {paginatedTrades.map((t: any, i: number) => (
-            <tr key={i}>
-              <td>
-                <a
-                  href={`https://solscan.io/tx/${t.tx}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t.tx.slice(0, 10)}…
-                </a>
-              </td>
+          <tbody>
+            {paginatedTrades.map((t: any, i: number) => (
+              <tr key={i}>
+                <td>
+                  <a
+                    href={`https://solscan.io/tx/${t.tx}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t.tx.slice(0, 10)}…
+                  </a>
+                </td>
 
-              {/* ALWAYS UTC */}
-              <td>{formatUtc(t.time)}</td>
+                <td>{formatUtc(t.time)}</td>
 
-              <td
-                className={
-                  t.side === "BUY" ? "text-green-300" : "text-red-400"
-                }
-              >
-                {t.side}
-              </td>
+                <td className={t.side === "BUY" ? "text-green-300" : "text-red-400"}>
+                  {t.side}
+                </td>
 
-              <td>{t.mint}</td>
-              <td>{t.amount}</td>
-              <td>${t.priceUsd.toFixed(4)}</td>
-            </tr>
-          ))}
-        </tbody>
+                <td>{t.mint}</td>
+                <td>{t.amount}</td>
+                <td>${t.priceUsd.toFixed(4)}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
 
         {/* TRADES Pagination */}
