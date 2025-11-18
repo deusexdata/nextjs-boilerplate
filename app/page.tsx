@@ -112,90 +112,93 @@ export default function HomePage() {
         )}
       </section>
 
-/* RECENT TRADES – INCLUDING PNL FIX */
-<section className="terminal-box">
-  <h2 className="terminal-title">[ RECENT TRADES & PNL ]</h2>
+      {/* RECENT TRADES */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ RECENT TRADES ]</h2>
 
-  {!Array.isArray(data.trades) || data.trades.length === 0 ? (
-    <p>No recent trades.</p>
-  ) : (
-    <table className="terminal-table">
-      <thead>
-        <tr>
-          <th>Token</th>
-          <th>Side</th>
-          <th>Amount</th>
-          <th>Entry Price</th>
-          <th>Current Price</th>
-          <th>PNL (USD)</th>
-          <th>Program</th>
-          <th>Time</th>
-          <th>TxID</th>
-        </tr>
-      </thead>
+        {/* SAFETY CHECK → prevents ALL crashes */}
+        {!Array.isArray(data.trades) || data.trades.length === 0 ? (
+          <p>No recent trades.</p>
+        ) : (
+          <table className="terminal-table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Side</th>
+                <th>Amount</th>
+                <th>USD Volume</th>
+                <th>Price (USD)</th>
+                <th>Program</th>
+                <th>Time</th>
+                <th>TxID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.trades.slice(0, 20).map((tr: any) => {
+                if (!tr || !tr.from || !tr.to) return null;
 
-      <tbody>
-        {data.trades.slice(0, 20).map((tr: Trade) => {
-          if (!tr || !tr.from || !tr.to) return null;
+                const timeStr = tr.time
+                  ? new Date(tr.time).toLocaleString()
+                  : "N/A";
 
-          const wallet = data.wallet;
-          const timestamp = new Date(tr.time).toLocaleString();
+                const side =
+                  tr.from.token?.symbol === "SOL" &&
+                  tr.to.token?.symbol !== "SOL"
+                    ? "BUY"
+                    : "SELL";
 
-          // Determine BUY or SELL
-          const isBuy = tr.to.address === wallet;
-          const isSell = tr.from.address === wallet;
+                const token =
+                  side === "BUY" ? tr.to.token || {} : tr.from.token || {};
 
-          const token = isBuy ? tr.to.token : tr.from.token;
-          const amount = isBuy ? tr.to.amount : tr.from.amount;
+                const amount =
+                  side === "BUY" ? tr.to.amount || 0 : tr.from.amount || 0;
 
-          // Entry price from SolanaTracker
-          const entryPrice = tr.price.usd;
+                return (
+                  <tr key={tr.tx}>
+                    <td>
+                      {token.symbol || "?"}
+                      <br />
+                      <span className="text-xs opacity-60">
+                        {token.name || ""}
+                      </span>
+                    </td>
 
-          // Find the token in current holdings to get current price
-          const held = data.tokens.find((t) => t.mint === tr.to.token?.address || t.mint === tr.from.token?.address);
-          const currentPrice = held?.priceUsd ?? tr.price.usd; // fallback: use entry price when priceUsd unavailable
+                    <td
+                      className={
+                        side === "BUY"
+                          ? "text-[#E4B300] font-bold"
+                          : "text-red-400 font-bold"
+                      }
+                    >
+                      {side}
+                    </td>
 
-          const pnlUsd = isBuy
-            ? (currentPrice - entryPrice) * amount
-            : (entryPrice - currentPrice) * amount;
+                    <td>{Number(amount).toLocaleString()}</td>
 
-          const side = isBuy ? "BUY" : "SELL";
+                    <td>${tr.volume?.usd?.toFixed?.(2) ?? "0.00"}</td>
 
-          return (
-            <tr key={tr.tx}>
-              <td>{token.symbol}</td>
+                    <td>${tr.price?.usd?.toFixed?.(8) ?? "0.00000000"}</td>
 
-              <td className={side === "BUY" ? "text-[#E4B300] font-bold" : "text-red-400 font-bold"}>
-                {side}
-              </td>
+                    <td>{tr.program || "N/A"}</td>
 
-              <td>{amount.toLocaleString()}</td>
+                    <td>{timeStr}</td>
 
-              <td>${entryPrice.toFixed(10)}</td>
-
-              <td>${currentPrice.toFixed(10)}</td>
-
-              <td className={pnlUsd >= 0 ? "text-green-300" : "text-red-400"}>
-                {pnlUsd >= 0 ? "+" : ""}
-                {pnlUsd.toFixed(4)}
-              </td>
-
-              <td>{tr.program}</td>
-
-              <td>{timestamp}</td>
-
-              <td>
-                <a href={`https://solscan.io/tx/${tr.tx}`} target="_blank">
-                  {tr.tx.slice(0, 10)}...
-                </a>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  )}
-</section>
+                    <td>
+                      <a
+                        href={`https://solscan.io/tx/${tr.tx}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {tr.tx?.slice?.(0, 10) ?? "???"}...
+                      </a>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {/* SOCIAL BUTTONS */}
       <div className="terminal-buttons">
