@@ -1,140 +1,112 @@
 "use client";
+
 import { useEffect, useState } from "react";
 
-export default function Page() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default function Home() {
+  const [wallet, setWallet] = useState("FXgeLoEMxTSf4Tfg7E1cbVAMEyPVJsSUGR1wkAU17iZW");
+  const [trades, setTrades] = useState<any[]>([]);
+  const [pnl, setPnl] = useState(0);
+  const [totalBuys, setTotalBuys] = useState(0);
+  const [totalSells, setTotalSells] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const fetchTrades = async () => {
+    setLoading(true);
+
     try {
-      const res = await fetch("/api/wallet");
-      const json = await res.json();
-      setData(json);
+      const res = await fetch(`/api/wallet/${wallet}`);
+      const data = await res.json();
+
+      if (data.trades) {
+        setTrades(data.trades);
+        setPnl(data.pnl);
+        setTotalBuys(data.totalBuys);
+        setTotalSells(data.totalSells);
+      }
     } catch (e) {
-      console.error("Frontend error:", e);
+      console.log("Error loading trades:", e);
     }
+
     setLoading(false);
   };
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
+    fetchTrades();
   }, []);
 
-  if (loading || !data) {
-    return (
-      <main className="min-h-screen flex items-center justify-center text-center">
-        Initializing Deus Terminal…
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen p-8 space-y-12">
+    <div className="px-6 py-8 max-w-3xl mx-auto">
+      <h1 className="text-3xl font-bold mb-4">Solana Wallet Analyzer</h1>
 
-      {/* HEADER */}
-      <h1 className="text-4xl mb-2">
-        ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
-      </h1>
-      <p className="text-md text-[#E4B300]">
-        Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
-      </p>
+      <div className="mb-4">
+        <input
+          className="border p-2 w-full rounded"
+          value={wallet}
+          onChange={(e) => setWallet(e.target.value)}
+        />
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded mt-3"
+          onClick={fetchTrades}
+        >
+          Analyze
+        </button>
+      </div>
 
-      {/* PORTFOLIO VALUE */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ TOTAL PORTFOLIO VALUE ]</h2>
-        <p className="text-3xl">
-          ${(data.portfolioValue ?? 0).toFixed(2)}
+      {/* PNL Summary */}
+      <div className="bg-gray-900 p-4 rounded-lg text-white mb-6">
+        <p className="text-xl">📊 Total PNL:  
+          <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>
+            {" "}
+            ${pnl.toFixed(2)}
+          </span>
         </p>
-      </section>
+        <p className="mt-2 text-gray-300">💸 Total Buys: ${totalBuys.toFixed(2)}</p>
+        <p className="text-gray-300">💰 Total Sells: ${totalSells.toFixed(2)}</p>
+      </div>
 
-      {/* SOL BALANCE */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ SOL BALANCE ]</h2>
-        <p className="text-2xl">
-          {(data.solBalance ?? 0).toFixed(4)} SOL
-        </p>
-      </section>
+      {/* Trades List */}
+      {loading ? (
+        <p className="text-white">Loading...</p>
+      ) : trades.length === 0 ? (
+        <p className="text-gray-400">No trades found.</p>
+      ) : (
+        <div className="grid gap-4">
+          {trades.map((t, i) => (
+            <div key={i} className="bg-gray-800 p-4 rounded-lg text-white">
+              <p className="font-bold">{t.tokenName} ({t.tokenSymbol})</p>
 
-      {/* TOKEN HOLDINGS */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ TOKEN HOLDINGS ]</h2>
-        {data.tokens.length === 0 ? (
-          <p>No tokens detected.</p>
-        ) : (
-          <table className="terminal-table">
-            <thead>
-              <tr>
-                <th>Mint</th>
-                <th>Amount</th>
-                <th>Price</th>
-                <th>Value</th>
-              </tr>
-            </thead>
+              <div className="flex justify-between mt-2 text-sm text-gray-400">
+                <span>Tx:</span>
+                <a
+                  href={`https://solscan.io/tx/${t.txid}`}
+                  target="_blank"
+                  className="text-blue-400 underline"
+                >
+                  View
+                </a>
+              </div>
 
-            <tbody>
-              {data.tokens.map((t: any) => (
-                <tr key={t.mint}>
-                  <td className="font-mono">{t.mint}</td>
-                  <td>{t.amount}</td>
-                  <td>{t.priceUsd ? t.priceUsd.toFixed(4) : "N/A"}</td>
-                  <td>${t.valueUsd.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+              <p className="text-sm mt-2">
+                Bought: {t.fromSymbol !== "SOL" ? t.fromAmount.toFixed(2) : "-"}  
+              </p>
 
-      {/* TRADES */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ RECENT TRADES ]</h2>
+              <p className="text-sm">
+                Sold: {t.toSymbol === "SOL" ? t.toAmount.toFixed(4) + " SOL" : "-"}
+              </p>
 
-        {data.trades.length === 0 ? (
-          <p>No recent trades.</p>
-        ) : (
-          <table className="terminal-table">
-            <thead>
-              <tr>
-                <th>TX</th>
-                <th>Time</th>
-                <th>Side</th>
-                <th>Mint</th>
-                <th>Amount</th>
-                <th>Price</th>
-              </tr>
-            </thead>
+              <p className="text-sm mt-1">USD Volume: ${t.volumeUsd.toFixed(2)}</p>
 
-            <tbody>
-              {data.trades.map((t: any, i: number) => (
-                <tr key={i}>
-                  <td>
-                    <a
-                      href={`https://solscan.io/tx/${t.tx}`}
-                      target="_blank"
-                    >
-                      {t.tx.slice(0, 12)}…
-                    </a>
-                  </td>
+              <p className="text-sm mt-1 text-gray-400">
+                Program: {t.program}
+              </p>
 
-                  <td>{new Date(t.time).toLocaleString()}</td>
-
-                  <td className={t.side === "BUY" ? "text-green-400" : "text-red-400"}>
-                    {t.side}
-                  </td>
-
-                  <td>{t.mint}</td>
-
-                  <td>{t.amount}</td>
-
-                  <td>${(t.priceUsd ?? 0).toFixed(4)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+              <p className="text-xs mt-1 text-gray-500">
+                {new Date(t.timestamp).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
