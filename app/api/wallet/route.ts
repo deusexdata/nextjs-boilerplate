@@ -5,6 +5,7 @@ const RPC_URL = process.env.SOLANA_RPC_URL!;
 const BOT_WALLET = process.env.BOT_WALLET_ADDRESS!;
 const API_KEY = "f6854be6-b87b-4b55-8447-d6e269bfe816";
 
+// 1 SOL = 1e9 lamports
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
 // ----------------------------
@@ -30,20 +31,26 @@ interface NormalizedPnl {
 // ----------------------------
 interface RawTrade {
   tx: string;
-  time?: number; // milliseconds since epoch (SolanaTracker)
-  timestamp?: number; // optional seconds-based timestamp (fallback)
+  time?: number;      // ms timestamp
+  timestamp?: number; // seconds timestamp
   price?: { usd?: number; usdc?: number; usdt?: number };
   volume?: { usd?: number };
-  from?: { token?: { symbol?: string; mint?: string }; amount?: number };
-  to?: { token?: { symbol?: string; mint?: string }; amount?: number };
+  from?: {
+    token?: { symbol?: string; mint?: string };
+    amount?: number;
+  };
+  to?: {
+    token?: { symbol?: string; mint?: string };
+    amount?: number;
+  };
 }
 
 interface NormalizedTrade {
   tx: string;
-  time: number; // ms
+  time: number;
   mint: string;
   amount: number;
-  priceUsd: number; // we use this as VALUE in USD (from volume.usd)
+  priceUsd: number;
   side: "BUY" | "SELL";
 }
 
@@ -66,7 +73,7 @@ export async function GET() {
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
     // ------------------------------------------------------------------
-    // 2) PNL ENDPOINT  (https://data.solanatracker.io/pnl/{wallet})
+    // 2) PNL ENDPOINT
     // ------------------------------------------------------------------
     const pnlRes = await fetch(
       `https://data.solanatracker.io/pnl/${BOT_WALLET}`,
@@ -81,9 +88,7 @@ export async function GET() {
       summary: {},
     };
 
-    if (pnlRes.ok) {
-      pnlData = await pnlRes.json();
-    }
+    if (pnlRes.ok) pnlData = await pnlRes.json();
 
     const pnlArray: NormalizedPnl[] = Object.entries(
       pnlData.tokens || {}
@@ -96,7 +101,7 @@ export async function GET() {
     }));
 
     // ------------------------------------------------------------------
-    // 3) TRADES ENDPOINT (https://data.solanatracker.io/wallet/{wallet}/trades)
+    // 3) TRADES ENDPOINT
     // ------------------------------------------------------------------
     const tradesRes = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=25`,
@@ -107,34 +112,37 @@ export async function GET() {
     );
 
     let trades: RawTrade[] = [];
-
     if (tradesRes.ok) {
       const raw = await tradesRes.json();
-      trades = Array.isArray(raw) ? (raw as RawTrade[]) : (raw.trades ?? []);
+      trades = Array.isArray(raw) ? raw : raw.trades ?? [];
     }
 
-    const lastTrades: NormalizedTrade[] = trades.map((t) => {
-      const isBuy = t.from?.token?.symbol === "SOL";
+    // ------------------------------------------------------------------
+    // FIXED SELL/BUY LOGIC (non-SOL token detection)
+    // ------------------------------------------------------------------
+    const SOL_MINT = "So11111111111111111111111111111111111111112";
 
-      // time from 'time' (ms) or fallback to 'timestamp' (sec → ms)
+    const lastTrades: NormalizedTrade[] = trades.map((t) => {
+      // time
       const time =
         t.time ??
         (typeof t.timestamp === "number" ? t.timestamp * 1000 : 0);
 
-      // mint: prefer actual mint address, otherwise symbol
+      // Detect BUY or SELL
+      const isBuy = t.from?.token?.symbol === "SOL";
+
+      // Identify the *non-SOL* token side (works for BUY & SELL)
+      const nonSolSide =
+        t.from?.token?.mint === SOL_MINT ? t.to : t.from;
+
       const mint =
-        t.to?.token?.mint ||
-        t.from?.token?.mint ||
-        t.to?.token?.symbol ||
-        t.from?.token?.symbol ||
+        nonSolSide?.token?.mint ||
+        nonSolSide?.token?.symbol ||
         "UNKNOWN";
 
-      // amount: if BUY, we receive token (t.to), if SELL, we send token (t.from)
-      const amount = Number(isBuy ? t.to?.amount : t.from?.amount) || 0;
+      const amount = Number(nonSolSide?.amount ?? 0);
 
-      // VALUE in USD for this trade:
-      // 1) use volume.usd if present
-      // 2) else price.usd if present (still per-token; front will show it)
+      // USD Value (priority: volume.usd → price.usd → others)
       const priceUsd =
         Number(t.volume?.usd) ||
         Number(t.price?.usd) ||
@@ -153,7 +161,7 @@ export async function GET() {
     });
 
     // ------------------------------------------------------------------
-    // 4) RESPONSE
+    // FINAL RESPONSE
     // ------------------------------------------------------------------
     return NextResponse.json({
       wallet: BOT_WALLET,
@@ -163,7 +171,6 @@ export async function GET() {
       lastTrades,
     });
   } catch (err: any) {
-    console.error("API Error:", err);
     return NextResponse.json(
       { error: "Internal server error", message: err.message },
       { status: 500 }
