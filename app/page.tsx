@@ -5,6 +5,11 @@ export default function Page() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Pagination states
+  const PAGE_SIZE = 10;
+  const [pnlPage, setPnlPage] = useState(0);
+  const [tradePage, setTradePage] = useState(0);
+
   const load = async () => {
     try {
       const res = await fetch("/api/wallet");
@@ -29,6 +34,21 @@ export default function Page() {
       </main>
     );
   }
+
+  // Sort PNL from highest → lowest
+  const sortedPnl = [...data.pnl].sort((a, b) => b.total - a.total);
+
+  // Paginate PNL
+  const paginatedPnl = sortedPnl.slice(
+    pnlPage * PAGE_SIZE,
+    (pnlPage + 1) * PAGE_SIZE
+  );
+
+  // Paginate trades
+  const paginatedTrades = data.lastTrades.slice(
+    tradePage * PAGE_SIZE,
+    (tradePage + 1) * PAGE_SIZE
+  );
 
   const totalPnl =
     data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
@@ -80,7 +100,7 @@ export default function Page() {
           </thead>
 
           <tbody>
-            {data.pnl.map((t: any) => (
+            {paginatedPnl.map((t: any) => (
               <tr key={t.mint}>
                 <td className="font-mono">{t.mint}</td>
 
@@ -102,6 +122,25 @@ export default function Page() {
             ))}
           </tbody>
         </table>
+
+        {/* PNL Pagination */}
+        <div className="flex justify-between mt-3">
+          <button
+            className="terminal-btn"
+            onClick={() => setPnlPage((p) => Math.max(0, p - 1))}
+            disabled={pnlPage === 0}
+          >
+            ◄ Prev
+          </button>
+
+          <button
+            className="terminal-btn"
+            onClick={() => setPnlPage((p) => p + 1)}
+            disabled={(pnlPage + 1) * PAGE_SIZE >= sortedPnl.length}
+          >
+            Next ►
+          </button>
+        </div>
       </section>
 
       {/* RECENT TRADES */}
@@ -121,7 +160,7 @@ export default function Page() {
           </thead>
 
           <tbody>
-            {data.lastTrades.map((t: any, i: number) => (
+            {paginatedTrades.map((t: any, i: number) => (
               <tr key={i}>
                 <td>
                   <a
@@ -132,6 +171,7 @@ export default function Page() {
                     {t.tx.slice(0, 10)}…
                   </a>
                 </td>
+
                 <td>{new Date(t.time).toLocaleString()}</td>
 
                 <td className={t.side === "BUY" ? "text-green-300" : "text-red-400"}>
@@ -147,6 +187,25 @@ export default function Page() {
             ))}
           </tbody>
         </table>
+
+        {/* TRADES Pagination */}
+        <div className="flex justify-between mt-3">
+          <button
+            className="terminal-btn"
+            onClick={() => setTradePage((p) => Math.max(0, p - 1))}
+            disabled={tradePage === 0}
+          >
+            ◄ Prev
+          </button>
+
+          <button
+            className="terminal-btn"
+            onClick={() => setTradePage((p) => p + 1)}
+            disabled={(tradePage + 1) * PAGE_SIZE >= data.lastTrades.length}
+          >
+            Next ►
+          </button>
+        </div>
       </section>
     </main>
   );
