@@ -22,38 +22,31 @@ type WalletData = {
   trades: Trade[];
 };
 
-export default function HomePage() {
+export default function Home() {
   const [data, setData] = useState<WalletData | null>(null);
   const [portfolioValue, setPortfolioValue] = useState<number>(0);
 
   useEffect(() => {
     const load = async () => {
-      try {
-        const res = await fetch("/api/wallet");
-        if (!res.ok) {
-          console.error("API error:", await res.text());
-          return;
-        }
-        const json = await res.json();
-        setData(json);
+      const res = await fetch("/api/wallet");
+      const json = await res.json();
+      setData(json);
 
-        let total = 0;
-        if (json.tokens) {
-          json.tokens.forEach((t: Token) => {
-            if (t.priceUsd) {
-              total += t.amount * t.priceUsd;
-            }
-          });
-        }
-        setPortfolioValue(total);
-      } catch (err) {
-        console.error("Fetch error:", err);
+      // Calculate portfolio value based on token balances x USD price
+      let total = 0;
+      if (json.tokens) {
+        json.tokens.forEach((t: Token) => {
+          if (t.priceUsd) {
+            total += t.amount * t.priceUsd;
+          }
+        });
       }
+      setPortfolioValue(total);
     };
 
     load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
+    const i = setInterval(load, 30000); // refresh every 30 seconds
+    return () => clearInterval(i);
   }, []);
 
   if (!data) {
@@ -66,11 +59,12 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen p-8 space-y-12 terminal-glow crt crt-screen">
+      
       {/* HEADER */}
       <h1 className="text-4xl mb-2 terminal-glow">
         ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
       </h1>
-      <p className="text-md text-[#E4B300]">
+      <p className="text-md text-[#00ffaacc]">
         Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
       </p>
 
@@ -129,12 +123,12 @@ export default function HomePage() {
         ) : (
           <div className="space-y-4">
             {data.trades.map((tr, i) => (
-              <div key={i} className="p-4 border border-[#D4AF37] rounded">
+              <div key={i} className="p-4 border border-[#00ff9d33] rounded">
                 <p>
                   <span
                     className={
                       tr.side === "BUY"
-                        ? "text-[#E4B300] font-bold"
+                        ? "text-green-300 font-bold"
                         : "text-red-400 font-bold"
                     }
                   >
@@ -143,12 +137,13 @@ export default function HomePage() {
                   {tr.amount} of {tr.mint}
                 </p>
 
-                <p className="text-sm text-[#FFD56A]">{tr.time}</p>
+                <p className="text-sm text-[#00ffaacc]">
+                  {tr.time}
+                </p>
 
                 <a
                   href={`https://solscan.io/tx/${tr.signature}`}
                   target="_blank"
-                  rel="noopener noreferrer"
                 >
                   TX → {tr.signature.slice(0, 12)}…
                 </a>
@@ -157,41 +152,39 @@ export default function HomePage() {
           </div>
         )}
       </section>
+        <div className="terminal-buttons">
+  <a
+    href="https://x.com/DEUS_EX_DATA"
+    target="_blank"
+    className="terminal-btn"
+  >
+    X / Twitter
+  </a>
 
-      {/* SOCIAL BUTTONS */}
-      <div className="terminal-buttons">
-        <a
-          href="https://twitter.com/DeusVisionAI"
-          target="_blank"
-          className="terminal-btn"
-        >
-          X / Twitter
-        </a>
+  <a
+    href="https://t.me/deus_ex_data"
+    target="_blank"
+    className="terminal-btn"
+  >
+    Telegram
+  </a>
 
-        <a
-          href="https://t.me/DeusVisionAI"
-          target="_blank"
-          className="terminal-btn"
-        >
-          Telegram
-        </a>
+  <a
+    href="https://dexscreener.com/solana/7erW8znDzdCkbEtj2mxrtbRJbC1ewuAJs34LS3R1fJ51"
+    target="_blank"
+    className="terminal-btn"
+  >
+    Dex
+  </a>
 
-        <a
-          href="https://dexscreener.com"
-          target="_blank"
-          className="terminal-btn"
-        >
-          Dexscreener
-        </a>
-
-        <a
-          href="/alerts"
-          target="_blank"
-          className="terminal-btn"
-        >
-          Access Alerts
-        </a>
-      </div>
+  <a
+    href="https://telegram.me/collablandbot?start=VFBDI1RFTCNDT01NIy0xMDAzMzM1ODk5Nzcx"
+    target="_blank"
+    className="terminal-btn"
+  >
+    Access Alerts
+  </a>
+</div>
     </main>
   );
 }
