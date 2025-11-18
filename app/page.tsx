@@ -1,140 +1,94 @@
 "use client";
-import { useEffect, useState } from "react";
 
-export default function Page() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+import { useState, useEffect } from "react";
 
-  const load = async () => {
-    try {
-      const res = await fetch("/api/wallet");
-      const json = await res.json();
-      setData(json);
-    } catch (e) {
-      console.error("Frontend error:", e);
+export default function Home() {
+  const [wallet, setWallet] = useState("FXgeLoEMxTSf4Tfg7E1cbVAMEyPVJsSUGR1wkAU17iZW");
+  const [loading, setLoading] = useState(false);
+
+  const [pnl, setPnl] = useState(0);
+  const [buys, setBuys] = useState(0);
+  const [sells, setSells] = useState(0);
+  const [trades, setTrades] = useState([]);
+
+  async function loadWallet() {
+    setLoading(true);
+
+    const res = await fetch(`/api/wallet?address=${wallet}`);
+    const data = await res.json();
+
+    if (data.trades) {
+      setTrades(data.trades);
+      setPnl(data.pnl);
+      setBuys(data.totalBuys);
+      setSells(data.totalSells);
     }
+
     setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loading || !data) {
-    return (
-      <main className="min-h-screen flex items-center justify-center text-center">
-        Initializing Deus Terminal…
-      </main>
-    );
   }
 
+  useEffect(() => {
+    loadWallet();
+  }, []);
+
   return (
-    <main className="min-h-screen p-8 space-y-12">
+    <div className="max-w-2xl mx-auto p-6 text-white">
+      <h1 className="text-3xl font-bold mb-5">Solana PNL Dashboard</h1>
 
-      {/* HEADER */}
-      <h1 className="text-4xl mb-2">
-        ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
-      </h1>
-      <p className="text-md text-[#E4B300]">
-        Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
-      </p>
+      <div className="flex gap-2">
+        <input
+          value={wallet}
+          onChange={(e) => setWallet(e.target.value)}
+          className="text-black p-2 flex-1 rounded"
+        />
+        <button
+          onClick={loadWallet}
+          className="bg-blue-500 px-4 py-2 rounded"
+        >
+          Load
+        </button>
+      </div>
 
-      {/* PORTFOLIO VALUE */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ TOTAL PORTFOLIO VALUE ]</h2>
-        <p className="text-3xl">
-          ${(data.portfolioValue ?? 0).toFixed(2)}
+      <div className="bg-gray-900 p-4 rounded mt-5">
+        <p className="text-xl">
+          Total PNL:{" "}
+          <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>
+            ${pnl.toFixed(2)}
+          </span>
         </p>
-      </section>
+        <p>Total Buys: ${buys.toFixed(2)}</p>
+        <p>Total Sells: ${sells.toFixed(2)}</p>
+      </div>
 
-      {/* SOL BALANCE */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ SOL BALANCE ]</h2>
-        <p className="text-2xl">
-          {(data.solBalance ?? 0).toFixed(4)} SOL
-        </p>
-      </section>
+      <h2 className="text-2xl mt-6 mb-2">Trades</h2>
 
-      {/* TOKEN HOLDINGS */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ TOKEN HOLDINGS ]</h2>
-        {data.tokens.length === 0 ? (
-          <p>No tokens detected.</p>
-        ) : (
-          <table className="terminal-table">
-            <thead>
-              <tr>
-                <th>Mint</th>
-                <th>Amount</th>
-                <th>Price</th>
-                <th>Value</th>
-              </tr>
-            </thead>
+      {loading && <p>Loading…</p>}
 
-            <tbody>
-              {data.tokens.map((t: any) => (
-                <tr key={t.mint}>
-                  <td className="font-mono">{t.mint}</td>
-                  <td>{t.amount}</td>
-                  <td>{t.priceUsd ? t.priceUsd.toFixed(4) : "N/A"}</td>
-                  <td>${t.valueUsd.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <div className="grid gap-3">
+        {trades.map((t: any, i: number) => (
+          <div key={i} className="bg-gray-800 p-4 rounded">
+            <p className="text-lg font-semibold">
+              {t.tokenName} ({t.tokenSymbol})
+            </p>
 
-      {/* TRADES */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ RECENT TRADES ]</h2>
+            <p>{t.isBuy ? "BUY" : t.isSell ? "SELL" : "SWAP"}</p>
 
-        {data.trades.length === 0 ? (
-          <p>No recent trades.</p>
-        ) : (
-          <table className="terminal-table">
-            <thead>
-              <tr>
-                <th>TX</th>
-                <th>Time</th>
-                <th>Side</th>
-                <th>Mint</th>
-                <th>Amount</th>
-                <th>Price</th>
-              </tr>
-            </thead>
+            <p className="text-sm">Volume: ${t.volumeUsd.toFixed(2)}</p>
 
-            <tbody>
-              {data.trades.map((t: any, i: number) => (
-                <tr key={i}>
-                  <td>
-                    <a
-                      href={`https://solscan.io/tx/${t.tx}`}
-                      target="_blank"
-                    >
-                      {t.tx.slice(0, 12)}…
-                    </a>
-                  </td>
+            <a
+              target="_blank"
+              href={`https://solscan.io/tx/${t.txid}`}
+              className="text-blue-400 underline"
+            >
+              View Transaction
+            </a>
 
-                  <td>{new Date(t.time).toLocaleString()}</td>
-
-                  <td className={t.side === "BUY" ? "text-green-400" : "text-red-400"}>
-                    {t.side}
-                  </td>
-
-                  <td>{t.mint}</td>
-
-                  <td>{t.amount}</td>
-
-                  <td>${(t.priceUsd ?? 0).toFixed(4)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+            <p className="text-xs text-gray-400 mt-1">
+              {new Date(t.timestamp).toLocaleString()}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
