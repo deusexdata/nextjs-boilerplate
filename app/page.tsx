@@ -12,6 +12,7 @@ type Trade = {
   from: { token: any; amount: number };
   to: { token: any; amount: number };
 };
+
 type WalletData = {
   wallet: string;
   solBalance: number;
@@ -28,6 +29,7 @@ export default function HomePage() {
       const res = await fetch("/api/wallet");
       const json = await res.json();
       if (!json) return;
+
       setData(json);
 
       let total = 0;
@@ -56,6 +58,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen p-8 space-y-12 terminal-glow crt crt-screen">
+      {/* HEADER */}
       <h1 className="text-4xl mb-2 terminal-glow">
         ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
       </h1>
@@ -63,16 +66,19 @@ export default function HomePage() {
         Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
       </p>
 
+      {/* SOL BALANCE */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ SOL BALANCE ]</h2>
         <p className="text-2xl">{data.solBalance.toFixed(4)} SOL</p>
       </section>
 
+      {/* PORTFOLIO VALUE */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ TOTAL PORTFOLIO VALUE ]</h2>
         <p className="text-3xl">${portfolioValue.toFixed(2)}</p>
       </section>
 
+      {/* TOKENS HELD */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ TOKENS HELD ]</h2>
 
@@ -104,6 +110,7 @@ export default function HomePage() {
         )}
       </section>
 
+      {/* RECENT TRADES */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ RECENT TRADES ]</h2>
 
@@ -127,7 +134,8 @@ export default function HomePage() {
               {data.trades.slice(0, 20).map((tr) => {
                 const timeStr = new Date(tr.time).toLocaleString();
                 const side =
-                  tr.from.token.symbol === "SOL" && tr.to.token.symbol !== "SOL"
+                  tr.from.token.symbol === "SOL" &&
+                  tr.to.token.symbol !== "SOL"
                     ? "BUY"
                     : "SELL";
                 const token = side === "BUY" ? tr.to.token : tr.from.token;
@@ -142,7 +150,9 @@ export default function HomePage() {
                     </td>
                     <td
                       className={
-                        side === "BUY" ? "text-[#E4B300] font-bold" : "text-red-400 font-bold"
+                        side === "BUY"
+                          ? "text-[#E4B300] font-bold"
+                          : "text-red-400 font-bold"
                       }
                     >
                       {side}
@@ -169,16 +179,33 @@ export default function HomePage() {
         )}
       </section>
 
+      {/* SOCIAL BUTTONS */}
       <div className="terminal-buttons">
-        <a href="https://twitter.com/DeusVisionAI" target="_blank" className="terminal-btn">
+        <a
+          href="https://twitter.com/DeusVisionAI"
+          target="_blank"
+          className="terminal-btn"
+        >
           X / Twitter
         </a>
-        <a href="https://t.me/DeusVisionAI" target="_blank" classClassName="terminal-btn">
+
+        {/* ✅ FIXED TYPO HERE */}
+        <a
+          href="https://t.me/DeusVisionAI"
+          target="_blank"
+          className="terminal-btn"
+        >
           Telegram
         </a>
-        <a href="https://dexscreener.com" target="_blank" className="terminal-btn">
+
+        <a
+          href="https://dexscreener.com"
+          target="_blank"
+          className="terminal-btn"
+        >
           Dexscreener
         </a>
+
         <a href="/alerts" target="_blank" className="terminal-btn">
           Access Alerts
         </a>
