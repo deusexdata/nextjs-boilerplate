@@ -35,11 +35,13 @@ export default function Page() {
     );
   }
 
-  // Sort PNL from highest → lowest
-  const sortedPnl = [...data.pnl].sort((a, b) => b.lastTrade - a.lastTrade);
+  // Sort PNL by lastTrade (from backend)
+  const sortedByLastTrade = [...data.pnl].sort(
+    (a, b) => b.lastTrade - a.lastTrade
+  );
 
   // Paginate PNL
-  const paginatedPnl = sortedPnl.slice(
+  const paginatedPnl = sortedByLastTrade.slice(
     pnlPage * PAGE_SIZE,
     (pnlPage + 1) * PAGE_SIZE
   );
@@ -49,6 +51,27 @@ export default function Page() {
     tradePage * PAGE_SIZE,
     (tradePage + 1) * PAGE_SIZE
   );
+
+  // -----------------------------
+  //  FEATURE 3: BEST / WORST TOKEN
+  // -----------------------------
+  const bestToken = [...data.pnl].sort((a, b) => b.total - a.total)[0];
+  const worstToken = [...data.pnl].sort((a, b) => a.total - b.total)[0];
+
+  // -----------------------------
+  //  FEATURE 4: WIN RATE
+  // -----------------------------
+  const winners = data.pnl.filter((t: any) => t.total > 0).length;
+  const totalTokens = data.pnl.length;
+  const winRate = totalTokens > 0 ? (winners / totalTokens) * 100 : 0;
+
+  // -----------------------------
+  //  FEATURE 18: TRADE SUMMARY
+  // -----------------------------
+  const totalTrades = data.lastTrades.length;
+  const buyTrades = data.lastTrades.filter((t: any) => t.side === "BUY").length;
+  const sellTrades = data.lastTrades.filter((t: any) => t.side === "SELL").length;
+  const netDirection = buyTrades - sellTrades;
 
   const totalPnl =
     data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
@@ -64,6 +87,50 @@ export default function Page() {
         Monitoring Wallet:
         <span className="font-mono ml-2">{data.wallet}</span>
       </p>
+
+      {/* TRADE SUMMARY BOX */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ TRADE SUMMARY ]</h2>
+
+        <div className="space-y-1">
+          <p>Total Trades: <span className="text-blue-300">{totalTrades}</span></p>
+          <p>Buys: <span className="text-green-300">{buyTrades}</span></p>
+          <p>Sells: <span className="text-red-300">{sellTrades}</span></p>
+          <p>
+            Net Direction:{" "}
+            <span className={netDirection >= 0 ? "text-green-300" : "text-red-300"}>
+              {netDirection >= 0 ? "+" : ""}
+              {netDirection}
+            </span>
+          </p>
+        </div>
+      </section>
+
+      {/* BEST / WORST PERFORMER */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ PERFORMANCE BADGES ]</h2>
+
+        <p>
+          🔥 Best Performer:{" "}
+          <span className="text-green-300 font-mono">
+            {bestToken.mint} ({bestToken.total.toFixed(2)} USD)
+          </span>
+        </p>
+
+        <p>
+          💀 Worst Performer:{" "}
+          <span className="text-red-300 font-mono">
+            {worstToken.mint} ({worstToken.total.toFixed(2)} USD)
+          </span>
+        </p>
+
+        <p className="mt-2">
+          🎯 Win Rate:{" "}
+          <span className={winRate >= 50 ? "text-green-300" : "text-red-300"}>
+            {winRate.toFixed(1)}%
+          </span>
+        </p>
+      </section>
 
       {/* SOL BALANCE */}
       <section className="terminal-box">
@@ -136,7 +203,7 @@ export default function Page() {
           <button
             className="terminal-btn"
             onClick={() => setPnlPage((p) => p + 1)}
-            disabled={(pnlPage + 1) * PAGE_SIZE >= sortedPnl.length}
+            disabled={(pnlPage + 1) * PAGE_SIZE >= sortedByLastTrade.length}
           >
             Next ►
           </button>
@@ -200,7 +267,7 @@ export default function Page() {
 
           <button
             className="terminal-btn"
-            onClick={() => setTradePage((p) => p + 1)}
+            onClick={() => setTradePage((p) => p + 1))}
             disabled={(tradePage + 1) * PAGE_SIZE >= data.lastTrades.length}
           >
             Next ►
