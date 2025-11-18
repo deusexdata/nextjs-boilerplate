@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
 
@@ -12,7 +14,10 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
       { cache: "no-store" }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("DexScreener HTTP error", res.status, res.statusText);
+      return null;
+    }
 
     const json = await res.json();
     if (Array.isArray(json) && json.length > 0) {
@@ -28,7 +33,12 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
 
 export async function GET() {
   try {
+    // Debug: log whether env vars exist
     if (!RPC_URL || !BOT_WALLET) {
+      console.error("Missing env vars", {
+        hasRpc: !!RPC_URL,
+        hasWallet: !!BOT_WALLET,
+      });
       return NextResponse.json(
         { error: "Missing SOLANA_RPC_URL or BOT_WALLET_ADDRESS" },
         { status: 500 }
@@ -81,13 +91,22 @@ export async function GET() {
       {
         headers: {
           "x-api-key": "f6854be6-b87b-4b55-8447-d6e269bfe816",
+          accept: "application/json",
         },
         cache: "no-store",
       }
     );
 
     let trades: any[] = [];
-    if (tRes.ok) trades = await tRes.json();
+    if (tRes.ok) {
+      trades = await tRes.json();
+    } else {
+      console.error(
+        "SolanaTracker HTTP error",
+        tRes.status,
+        tRes.statusText
+      );
+    }
 
     return NextResponse.json({
       wallet: BOT_WALLET,
@@ -96,10 +115,15 @@ export async function GET() {
       portfolioValue,
       trades: trades.slice(0, 25),
     });
-  } catch (err) {
-    console.error("API Error:", err);
+  } catch (err: any) {
+    console.error("API Error in /api/wallet:", err);
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error: "Internal server error",
+        message: err?.message ?? String(err),
+        name: err?.name ?? "Error",
+      },
       { status: 500 }
     );
   }
