@@ -49,7 +49,7 @@ export async function GET(): Promise<NextResponse> {
   try {
     if (!RPC_URL || !BOT_WALLET) {
       return NextResponse.json(
-        { error: "Missing environment variables" },
+        { error: "mMissing environment variables" },
         { status: 500 }
       );
     }
