@@ -5,7 +5,6 @@ const RPC_URL = process.env.SOLANA_RPC_URL!;
 const BOT_WALLET = process.env.BOT_WALLET_ADDRESS!;
 const API_KEY = "f6854be6-b87b-4b55-8447-d6e269bfe816";
 
-// 1 SOL = 1e9 lamports
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
 // ----------------------------
@@ -31,18 +30,12 @@ interface NormalizedPnl {
 // ----------------------------
 interface RawTrade {
   tx: string;
-  time?: number;      // ms timestamp
-  timestamp?: number; // seconds timestamp
+  time?: number;           // ms timestamp
+  timestamp?: number;      // sec timestamp fallback
   price?: { usd?: number; usdc?: number; usdt?: number };
   volume?: { usd?: number };
-  from?: {
-    token?: { symbol?: string; mint?: string };
-    amount?: number;
-  };
-  to?: {
-    token?: { symbol?: string; mint?: string };
-    amount?: number;
-  };
+  from?: { token?: { symbol?: string; mint?: string }; amount?: number };
+  to?:   { token?: { symbol?: string; mint?: string }; amount?: number };
 }
 
 interface NormalizedTrade {
@@ -58,23 +51,22 @@ export async function GET() {
   try {
     if (!RPC_URL || !BOT_WALLET) {
       return NextResponse.json(
-        { error: "Missing environment variables" },
+        { error: "Missing RPC_URL or BOT_WALLET env" },
         { status: 500 }
       );
     }
 
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     // 1) SOL BALANCE
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
-
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     // 2) PNL ENDPOINT
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     const pnlRes = await fetch(
       `https://data.solanatracker.io/pnl/${BOT_WALLET}`,
       {
@@ -100,9 +92,9 @@ export async function GET() {
       total: Number(stats.total ?? 0),
     }));
 
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     // 3) TRADES ENDPOINT
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     const tradesRes = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=25`,
       {
@@ -114,35 +106,32 @@ export async function GET() {
     let trades: RawTrade[] = [];
     if (tradesRes.ok) {
       const raw = await tradesRes.json();
-      trades = Array.isArray(raw) ? raw : raw.trades ?? [];
+      trades = Array.isArray(raw) ? raw : (raw.trades ?? []);
     }
 
-    // ------------------------------------------------------------------
-    // FIXED SELL/BUY LOGIC (non-SOL token detection)
-    // ------------------------------------------------------------------
-    const SOL_MINT = "So11111111111111111111111111111111111111112";
-
+    // ----------------------------------------------
+    // FIXED TRADE LOGIC
+    // ----------------------------------------------
     const lastTrades: NormalizedTrade[] = trades.map((t) => {
-      // time
-      const time =
-        t.time ??
-        (typeof t.timestamp === "number" ? t.timestamp * 1000 : 0);
-
-      // Detect BUY or SELL
       const isBuy = t.from?.token?.symbol === "SOL";
 
-      // Identify the *non-SOL* token side (works for BUY & SELL)
-      const nonSolSide =
-        t.from?.token?.mint === SOL_MINT ? t.to : t.from;
+      // Correct timestamp (ms)
+      const time = t.time ?? (t.timestamp ? t.timestamp * 1000 : 0);
+
+      // Select the traded token (non-SOL token)
+      const traded = isBuy ? t.to?.token : t.from?.token;
 
       const mint =
-        nonSolSide?.token?.mint ||
-        nonSolSide?.token?.symbol ||
+        traded?.mint ||
+        traded?.symbol ||
         "UNKNOWN";
 
-      const amount = Number(nonSolSide?.amount ?? 0);
+      // Always use the token-side amount (non-SOL)
+      const amount = Number(
+        isBuy ? t.to?.amount : t.from?.amount
+      ) || 0;
 
-      // USD Value (priority: volume.usd → price.usd → others)
+      // Use volume.usd (correct value for the trade)
       const priceUsd =
         Number(t.volume?.usd) ||
         Number(t.price?.usd) ||
@@ -160,9 +149,9 @@ export async function GET() {
       };
     });
 
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     // FINAL RESPONSE
-    // ------------------------------------------------------------------
+    // ----------------------------------------------
     return NextResponse.json({
       wallet: BOT_WALLET,
       solBalance,
@@ -170,7 +159,9 @@ export async function GET() {
       summary: pnlData.summary ?? {},
       lastTrades,
     });
+
   } catch (err: any) {
+    console.error("API Error:", err);
     return NextResponse.json(
       { error: "Internal server error", message: err.message },
       { status: 500 }
