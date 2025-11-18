@@ -7,7 +7,7 @@ export default function Home() {
 
   const load = async () => {
     try {
-      const res = await fetch("/api/wallet");
+      const res = await fetch("/api/wallet", { cache: "no-store" });
       const json = await res.json();
       setData(json);
     } catch (e) {
@@ -30,10 +30,24 @@ export default function Home() {
     );
   }
 
+  if (data.error) {
+    return (
+      <main className="min-h-screen flex items-center justify-center text-center terminal-glow">
+        <div>
+          <div className="text-red-400 text-xl mb-4">
+            API Error: {data.error}
+          </div>
+          <div className="text-sm text-[#E4B300]">
+            {data.message ?? ""}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen p-8 space-y-12 terminal-glow">
-      
-      {/* HEADER */}
+
       <h1 className="text-4xl mb-2 terminal-glow">
         ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
       </h1>
@@ -45,7 +59,7 @@ export default function Home() {
       <section className="terminal-box">
         <h2 className="terminal-title">[ PORTFOLIO VALUE ]</h2>
         <p className="text-3xl">
-          ${(data.portfolioValue || 0).toFixed(2)}
+          ${(data.portfolioValue ?? 0).toFixed(2)}
         </p>
       </section>
 
@@ -53,7 +67,7 @@ export default function Home() {
       <section className="terminal-box">
         <h2 className="terminal-title">[ SOL BALANCE ]</h2>
         <p className="text-2xl">
-          {(data.solBalance || 0).toFixed(4)} SOL
+          {(data.solBalance ?? 0).toFixed(4)} SOL
         </p>
       </section>
 
@@ -111,7 +125,8 @@ export default function Home() {
             </thead>
             <tbody>
               {data.trades.map((t: any, i: number) => {
-                const isBuy = t.type === "buy" || t.side === "buy";
+                const isBuy = t.side === "buy" || t.type === "buy";
+
                 return (
                   <tr key={i}>
                     <td>
@@ -134,7 +149,7 @@ export default function Home() {
 
                     <td>{t.amount}</td>
 
-                    <td>{t.priceUsd ? t.priceUsd.toFixed(4) : "N/A"}</td>
+                    <td>{t.priceUsd ? Number(t.priceUsd).toFixed(4) : "N/A"}</td>
                   </tr>
                 );
               })}

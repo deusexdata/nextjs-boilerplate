@@ -5,6 +5,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 const RPC_URL = process.env.SOLANA_RPC_URL!;
 const BOT_WALLET = process.env.BOT_WALLET_ADDRESS!;
+const API_KEY = "f6854be6-b87b-4b55-8447-d6e269bfe816";
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
 // Fetch price from DexScreener
@@ -14,8 +15,9 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
       { cache: "no-store" }
     );
+
     if (!res.ok) {
-      console.error("DexScreener HTTP error", res.status, res.statusText);
+      console.error("DexScreener error:", res.status, res.statusText);
       return null;
     }
 
@@ -33,14 +35,9 @@ async function fetchDexPrice(mint: string): Promise<number | null> {
 
 export async function GET() {
   try {
-    // Debug: log whether env vars exist
     if (!RPC_URL || !BOT_WALLET) {
-      console.error("Missing env vars", {
-        hasRpc: !!RPC_URL,
-        hasWallet: !!BOT_WALLET,
-      });
       return NextResponse.json(
-        { error: "Missing SOLANA_RPC_URL or BOT_WALLET_ADDRESS" },
+        { error: "Missing RPC or Wallet env vars" },
         { status: 500 }
       );
     }
@@ -48,11 +45,11 @@ export async function GET() {
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
 
-    // Get SOL balance
+    // SOL balance
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // Get SPL tokens
+    // SPL token balances
     const tokenAccounts =
       await connection.getParsedTokenAccountsByOwner(pubkey, {
         programId: new PublicKey(
@@ -70,59 +67,55 @@ export async function GET() {
       .filter((t) => t.amount > 0);
 
     const tokens = await Promise.all(
-      rawTokens.map(async (t) => {
-        const priceUsd = await fetchDexPrice(t.mint);
-        return {
-          mint: t.mint,
-          amount: t.amount,
-          priceUsd,
-        };
-      })
+      rawTokens.map(async (t) => ({
+        mint: t.mint,
+        amount: t.amount,
+        priceUsd: await fetchDexPrice(t.mint),
+      }))
     );
 
-    const portfolioValue = tokens.reduce((sum, t) => {
-      if (!t.priceUsd) return sum;
-      return sum + t.priceUsd * t.amount;
-    }, 0);
+    // Portfolio total USD
+    const portfolioValue = tokens.reduce(
+      (sum, t) =>
+        t.priceUsd ? sum + t.priceUsd * t.amount : sum,
+      0
+    );
 
-    // Fetch trades (live)
-    const tRes = await fetch(
+    // Live trades from SolanaTracker
+    const resp = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades`,
       {
-        headers: {
-          "x-api-key": "f6854be6-b87b-4b55-8447-d6e269bfe816",
-          accept: "application/json",
-        },
+        headers: { "x-api-key": API_KEY, accept: "application/json" },
         cache: "no-store",
       }
     );
 
     let trades: any[] = [];
-    if (tRes.ok) {
-      trades = await tRes.json();
+    if (resp.ok) {
+      trades = await resp.json();
     } else {
-      console.error(
-        "SolanaTracker HTTP error",
-        tRes.status,
-        tRes.statusText
-      );
+      console.error("SolanaTracker error:", resp.status, resp.statusText);
     }
 
+    // Return a SAFE payload with all required fields
     return NextResponse.json({
       wallet: BOT_WALLET,
       solBalance,
       tokens,
       portfolioValue,
       trades: trades.slice(0, 25),
+
+      // Placeholder fields to avoid frontend crash
+      totalRealizedPnlUsd: 0,
+      pnl: {},
+      fifo: {},
     });
   } catch (err: any) {
-    console.error("API Error in /api/wallet:", err);
-
+    console.error("Wallet API Error:", err);
     return NextResponse.json(
       {
         error: "Internal server error",
-        message: err?.message ?? String(err),
-        name: err?.name ?? "Error",
+        message: err?.message,
       },
       { status: 500 }
     );
