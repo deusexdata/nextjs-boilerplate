@@ -1,63 +1,38 @@
 "use client";
-
 import { useEffect, useState } from "react";
 
-type Token = { mint: string; amount: number; priceUsd?: number | null };
-type Trade = {
-  tx: string;
-  time: string;
-  program: string;
-  volume: { usd: number; sol: number };
-  price: { usd: number; sol: number };
-  from: { token: any; amount: number };
-  to: { token: any; amount: number };
-};
+export default function Home() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-type WalletData = {
-  wallet: string;
-  solBalance: number;
-  tokens: Token[];
-  trades: Trade[] | null | undefined;
-};
-
-export default function HomePage() {
-  const [data, setData] = useState<WalletData | null>(null);
-  const [portfolioValue, setPortfolioValue] = useState<number>(0);
-
-  async function load() {
+  const load = async () => {
     try {
       const res = await fetch("/api/wallet");
       const json = await res.json();
-      if (!json) return;
-
       setData(json);
-
-      let total = 0;
-      json.tokens.forEach((t: Token) => {
-        if (t.priceUsd) total += t.amount * t.priceUsd;
-      });
-      setPortfolioValue(total);
-    } catch (err) {
-      console.error("Frontend fetch error:", err);
+    } catch (e) {
+      console.error("Frontend load error:", e);
     }
-  }
+    setLoading(false);
+  };
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 300000); // 5 minutes
+    const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  if (!data) {
+  if (loading || !data) {
     return (
       <main className="min-h-screen flex items-center justify-center text-center terminal-glow">
-        Loading Deus Terminal…
+        Initializing Deus Terminal…
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen p-8 space-y-12 terminal-glow crt crt-screen">
+    <main className="min-h-screen p-8 space-y-12 terminal-glow">
+
       {/* HEADER */}
       <h1 className="text-4xl mb-2 terminal-glow">
         ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
@@ -66,21 +41,28 @@ export default function HomePage() {
         Monitoring Wallet: <span className="font-mono">{data.wallet}</span>
       </p>
 
+      {/* TOTAL PNL */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ TOTAL REALIZED PNL ]</h2>
+        <p
+          className={
+            data.totalRealizedPnlUsd >= 0 ? "text-green-400 text-3xl" : "text-red-400 text-3xl"
+          }
+        >
+          {data.totalRealizedPnlUsd >= 0 ? "+" : ""}
+          {data.totalRealizedPnlUsd.toFixed(2)} USD
+        </p>
+      </section>
+
       {/* SOL BALANCE */}
       <section className="terminal-box">
         <h2 className="terminal-title">[ SOL BALANCE ]</h2>
         <p className="text-2xl">{data.solBalance.toFixed(4)} SOL</p>
       </section>
 
-      {/* PORTFOLIO VALUE */}
+      {/* TOKEN BALANCES */}
       <section className="terminal-box">
-        <h2 className="terminal-title">[ TOTAL PORTFOLIO VALUE ]</h2>
-        <p className="text-3xl">${portfolioValue.toFixed(2)}</p>
-      </section>
-
-      {/* TOKENS HELD */}
-      <section className="terminal-box">
-        <h2 className="terminal-title">[ TOKENS HELD ]</h2>
+        <h2 className="terminal-title">[ TOKEN HOLDINGS ]</h2>
 
         {data.tokens.length === 0 ? (
           <p>No SPL tokens detected.</p>
@@ -91,19 +73,86 @@ export default function HomePage() {
                 <th>Token Mint</th>
                 <th>Amount</th>
                 <th>Price (USD)</th>
-                <th>Total Value</th>
+                <th>Value (USD)</th>
               </tr>
             </thead>
+
             <tbody>
-              {data.tokens.map((t) => (
+              {data.tokens.map((t: any) => (
                 <tr key={t.mint}>
                   <td className="font-mono">{t.mint}</td>
                   <td>{t.amount}</td>
-                  <td>{t.priceUsd ? `$${t.priceUsd.toFixed(6)}` : "N/A"}</td>
+                  <td>{t.priceUsd ? t.priceUsd.toFixed(4) : "N/A"}</td>
                   <td>
                     {t.priceUsd
-                      ? `$${(t.amount * t.priceUsd).toFixed(2)}`
+                      ? (t.priceUsd * t.amount).toFixed(2)
                       : "N/A"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* REALIZED PNL PER TOKEN */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ REALIZED PNL BY TOKEN ]</h2>
+
+        <table className="terminal-table">
+          <thead>
+            <tr>
+              <th>Token Mint</th>
+              <th>Realized PNL (USD)</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {Object.entries(data.pnl).map(([mint, values]: any) => (
+              <tr key={mint}>
+                <td className="font-mono">{mint}</td>
+                <td
+                  className={
+                    values.realizedPnlUsd >= 0 ? "text-green-300" : "text-red-400"
+                  }
+                >
+                  {values.realizedPnlUsd >= 0 ? "+" : ""}
+                  {values.realizedPnlUsd.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* FIFO INVENTORY */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ FIFO INVENTORY (UNSOLD BATCHES) ]</h2>
+
+        {Object.keys(data.fifo).length === 0 ? (
+          <p>No remaining inventory.</p>
+        ) : (
+          <table className="terminal-table">
+            <thead>
+              <tr>
+                <th>Token Mint</th>
+                <th>Batches</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {Object.entries(data.fifo).map(([mint, batches]: any) => (
+                <tr key={mint}>
+                  <td className="font-mono">{mint}</td>
+                  <td>
+                    {batches.length} batches
+                    <br />
+                    {batches.map((b: any, i: number) => (
+                      <div key={i} className="text-xs text-[#E4B300cc]">
+                        {b.amount} @ ${b.priceUsd} on{" "}
+                        {new Date(b.timestamp).toLocaleString()}
+                      </div>
+                    ))}
                   </td>
                 </tr>
               ))}
@@ -116,120 +165,51 @@ export default function HomePage() {
       <section className="terminal-box">
         <h2 className="terminal-title">[ RECENT TRADES ]</h2>
 
-        {/* SAFETY CHECK → prevents ALL crashes */}
-        {!Array.isArray(data.trades) || data.trades.length === 0 ? (
+        {data.trades.length === 0 ? (
           <p>No recent trades.</p>
         ) : (
           <table className="terminal-table">
             <thead>
               <tr>
-                <th>Token</th>
-                <th>Side</th>
-                <th>Amount</th>
-                <th>USD Volume</th>
-                <th>Price (USD)</th>
-                <th>Program</th>
+                <th>TX</th>
                 <th>Time</th>
-                <th>TxID</th>
+                <th>Type</th>
+                <th>Token</th>
+                <th>Amount</th>
+                <th>Price (USD)</th>
               </tr>
             </thead>
+
             <tbody>
-              {data.trades.slice(0, 20).map((tr: any) => {
-                if (!tr || !tr.from || !tr.to) return null;
-
-                const timeStr = tr.time
-                  ? new Date(tr.time).toLocaleString()
-                  : "N/A";
-
-                const side =
-                  tr.from.token?.symbol === "SOL" &&
-                  tr.to.token?.symbol !== "SOL"
-                    ? "BUY"
-                    : "SELL";
-
-                const token =
-                  side === "BUY" ? tr.to.token || {} : tr.from.token || {};
-
-                const amount =
-                  side === "BUY" ? tr.to.amount || 0 : tr.from.amount || 0;
-
-                return (
-                  <tr key={tr.tx}>
-                    <td>
-                      {token.symbol || "?"}
-                      <br />
-                      <span className="text-xs opacity-60">
-                        {token.name || ""}
-                      </span>
-                    </td>
-
-                    <td
-                      className={
-                        side === "BUY"
-                          ? "text-[#E4B300] font-bold"
-                          : "text-red-400 font-bold"
-                      }
+              {data.trades.map((t: any, i: number) => (
+                <tr key={i}>
+                  <td>
+                    <a
+                      href={`https://solscan.io/tx/${t.tx}`}
+                      target="_blank"
+                      rel="noreferrer"
                     >
-                      {side}
-                    </td>
+                      {t.tx.slice(0, 12)}…
+                    </a>
+                  </td>
 
-                    <td>{Number(amount).toLocaleString()}</td>
+                  <td>{new Date(t.time).toLocaleString()}</td>
 
-                    <td>${tr.volume?.usd?.toFixed?.(2) ?? "0.00"}</td>
+                  <td className={t.from.token.symbol === "SOL" ? "text-green-300" : "text-red-400"}>
+                    {t.from.token.symbol === "SOL" ? "BUY" : "SELL"}
+                  </td>
 
-                    <td>${tr.price?.usd?.toFixed?.(8) ?? "0.00000000"}</td>
+                  <td>{t.from.token.symbol === "SOL" ? t.to.token.mint : t.from.token.mint}</td>
 
-                    <td>{tr.program || "N/A"}</td>
+                  <td>{t.from.token.symbol === "SOL" ? t.to.amount : t.from.amount}</td>
 
-                    <td>{timeStr}</td>
-
-                    <td>
-                      <a
-                        href={`https://solscan.io/tx/${tr.tx}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {tr.tx?.slice?.(0, 10) ?? "???"}...
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
+                  <td>{t.price.usd.toFixed(4)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
       </section>
-
-      {/* SOCIAL BUTTONS */}
-      <div className="terminal-buttons">
-        <a
-          href="https://twitter.com/DeusVisionAI"
-          target="_blank"
-          className="terminal-btn"
-        >
-          X / Twitter
-        </a>
-
-        <a
-          href="https://t.me/DeusVisionAI"
-          target="_blank"
-          className="terminal-btn"
-        >
-          Telegram
-        </a>
-
-        <a
-          href="https://dexscreener.com"
-          target="_blank"
-          className="terminal-btn"
-        >
-          Dexscreener
-        </a>
-
-        <a href="/alerts" target="_blank" className="terminal-btn">
-          Access Alerts
-        </a>
-      </div>
     </main>
   );
 }
