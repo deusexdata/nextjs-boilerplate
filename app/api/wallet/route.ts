@@ -30,41 +30,43 @@ interface NormalizedPnl {
 // ----------------------------
 interface RawTrade {
   tx: string;
-  timestamp: number;
-  price?: { usd?: number };
+  time?: number; // milliseconds since epoch (SolanaTracker)
+  timestamp?: number; // optional seconds-based timestamp (fallback)
+  price?: { usd?: number; usdc?: number; usdt?: number };
+  volume?: { usd?: number };
   from?: { token?: { symbol?: string; mint?: string }; amount?: number };
   to?: { token?: { symbol?: string; mint?: string }; amount?: number };
 }
 
 interface NormalizedTrade {
   tx: string;
-  time: number;
+  time: number; // ms
   mint: string;
   amount: number;
-  priceUsd: number;
+  priceUsd: number; // we use this as VALUE in USD (from volume.usd)
   side: "BUY" | "SELL";
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET() {
   try {
     if (!RPC_URL || !BOT_WALLET) {
       return NextResponse.json(
-        { error: "mMissing environment variables" },
+        { error: "Missing environment variables" },
         { status: 500 }
       );
     }
 
-    const connection = new Connection(RPC_URL, "confirmed");
-    const pubkey = new PublicKey(BOT_WALLET);
-
     // ------------------------------------------------------------------
     // 1) SOL BALANCE
     // ------------------------------------------------------------------
+    const connection = new Connection(RPC_URL, "confirmed");
+    const pubkey = new PublicKey(BOT_WALLET);
+
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
     // ------------------------------------------------------------------
-    // 2) PNL ENDPOINT
+    // 2) PNL ENDPOINT  (https://data.solanatracker.io/pnl/{wallet})
     // ------------------------------------------------------------------
     const pnlRes = await fetch(
       `https://data.solanatracker.io/pnl/${BOT_WALLET}`,
@@ -74,7 +76,7 @@ export async function GET(): Promise<NextResponse> {
       }
     );
 
-    let pnlData: { tokens: Record<string, TokenPnl>; summary?: object } = {
+    let pnlData: { tokens: Record<string, TokenPnl>; summary?: any } = {
       tokens: {},
       summary: {},
     };
@@ -83,19 +85,18 @@ export async function GET(): Promise<NextResponse> {
       pnlData = await pnlRes.json();
     }
 
-    // Convert token PNL object to array
-    const pnlArray: NormalizedPnl[] = Object.entries(pnlData.tokens).map(
-      ([mint, stats]) => ({
-        mint,
-        name: stats.name ?? "",
-        realized: Number(stats.realized ?? 0),
-        unrealized: Number(stats.unrealized ?? 0),
-        total: Number(stats.total ?? 0),
-      })
-    );
+    const pnlArray: NormalizedPnl[] = Object.entries(
+      pnlData.tokens || {}
+    ).map(([mint, stats]) => ({
+      mint,
+      name: stats.name ?? "",
+      realized: Number(stats.realized ?? 0),
+      unrealized: Number(stats.unrealized ?? 0),
+      total: Number(stats.total ?? 0),
+    }));
 
     // ------------------------------------------------------------------
-    // 3) TRADES ENDPOINT
+    // 3) TRADES ENDPOINT (https://data.solanatracker.io/wallet/{wallet}/trades)
     // ------------------------------------------------------------------
     const tradesRes = await fetch(
       `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=25`,
@@ -109,23 +110,44 @@ export async function GET(): Promise<NextResponse> {
 
     if (tradesRes.ok) {
       const raw = await tradesRes.json();
-      trades = Array.isArray(raw) ? raw : raw.trades ?? [];
+      trades = Array.isArray(raw) ? (raw as RawTrade[]) : (raw.trades ?? []);
     }
 
     const lastTrades: NormalizedTrade[] = trades.map((t) => {
       const isBuy = t.from?.token?.symbol === "SOL";
 
+      // time from 'time' (ms) or fallback to 'timestamp' (sec → ms)
+      const time =
+        t.time ??
+        (typeof t.timestamp === "number" ? t.timestamp * 1000 : 0);
+
+      // mint: prefer actual mint address, otherwise symbol
+      const mint =
+        t.to?.token?.mint ||
+        t.from?.token?.mint ||
+        t.to?.token?.symbol ||
+        t.from?.token?.symbol ||
+        "UNKNOWN";
+
+      // amount: if BUY, we receive token (t.to), if SELL, we send token (t.from)
+      const amount = Number(isBuy ? t.to?.amount : t.from?.amount) || 0;
+
+      // VALUE in USD for this trade:
+      // 1) use volume.usd if present
+      // 2) else price.usd if present (still per-token; front will show it)
+      const priceUsd =
+        Number(t.volume?.usd) ||
+        Number(t.price?.usd) ||
+        Number(t.price?.usdc) ||
+        Number(t.price?.usdt) ||
+        0;
+
       return {
         tx: t.tx,
-        time: t.timestamp,
-        mint:
-          t.to?.token?.mint ||
-          t.from?.token?.mint ||
-          t.to?.token?.symbol ||
-          t.from?.token?.symbol ||
-          "UNKNOWN",
-        amount: Number(isBuy ? t.to?.amount : t.from?.amount) || 0,
-        priceUsd: Number(t.price?.usd ?? 0),
+        time,
+        mint,
+        amount,
+        priceUsd,
         side: isBuy ? "BUY" : "SELL",
       };
     });
