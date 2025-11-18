@@ -35,23 +35,53 @@ export default function Page() {
     );
   }
 
-  // Sort PNL from highest → lowest
+  // Sort PNL by last trade time
   const sortedPnl = [...data.pnl].sort((a, b) => b.lastTrade - a.lastTrade);
 
-  // Paginate PNL
+  // Pagination
   const paginatedPnl = sortedPnl.slice(
     pnlPage * PAGE_SIZE,
     (pnlPage + 1) * PAGE_SIZE
   );
 
-  // Paginate trades
   const paginatedTrades = data.lastTrades.slice(
     tradePage * PAGE_SIZE,
     (tradePage + 1) * PAGE_SIZE
   );
 
+  // Total PNL
   const totalPnl =
     data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
+
+  // ----------------------------------------
+  // 3) BEST & WORST PERFORMER
+  // ----------------------------------------
+  const best = [...data.pnl].sort((a, b) => b.total - a.total)[0];
+  const worst = [...data.pnl].sort((a, b) => a.total - b.total)[0];
+
+  // ----------------------------------------
+  // 4) WIN RATE (SELLS ONLY)
+  // ----------------------------------------
+  const sells = data.lastTrades.filter((t: any) => t.side === "SELL");
+  const wins = sells.filter((t: any) => t.priceUsd > 0);
+  const winRate = sells.length > 0 ? (wins.length / sells.length) * 100 : 0;
+
+  // ----------------------------------------
+  // 18) TRADE SUMMARY BOX
+  // ----------------------------------------
+  const buys = data.lastTrades.filter((t: any) => t.side === "BUY").length;
+  const totalTrades = data.lastTrades.length;
+
+  const totalVolumeUsd = data.lastTrades.reduce(
+    (sum: number, t: any) => sum + (t.priceUsd || 0),
+    0
+  );
+
+  const avgTradeUsd =
+    totalTrades > 0 ? totalVolumeUsd / totalTrades : 0;
+
+  const lastTradeTime =
+    totalTrades > 0 ? new Date(data.lastTrades[0].time).toLocaleString() : "N/A";
 
   return (
     <main className="min-h-screen p-8 space-y-12">
@@ -64,6 +94,47 @@ export default function Page() {
         Monitoring Wallet:
         <span className="font-mono ml-2">{data.wallet}</span>
       </p>
+
+      {/* SUMMARY BOX */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ TRADE SUMMARY ]</h2>
+
+        <div className="grid grid-cols-2 gap-4 text-lg mt-3">
+          <div>📈 Total Trades: <span className="text-[#E4B300]">{totalTrades}</span></div>
+          <div>🟢 Buys: <span className="text-green-400">{buys}</span></div>
+
+          <div>🔴 Sells: <span className="text-red-400">{sells.length}</span></div>
+          <div>💰 Total Volume USD: <span className="text-blue-300">${totalVolumeUsd.toFixed(2)}</span></div>
+
+          <div>📊 Avg Trade Size: <span className="text-purple-300">${avgTradeUsd.toFixed(2)}</span></div>
+          <div>🏆 Win Rate: <span className="text-green-300">{winRate.toFixed(1)}%</span></div>
+
+          <div>🕒 Last Trade: <span className="text-yellow-300">{lastTradeTime}</span></div>
+        </div>
+      </section>
+
+      {/* BEST & WORST */}
+      <section className="terminal-box">
+        <h2 className="terminal-title">[ PERFORMANCE HIGHLIGHTS ]</h2>
+
+        <div className="grid grid-cols-2 gap-4 text-lg mt-3">
+          <div>
+            🥇 <span className="text-green-300">BEST:</span>
+            <div className="font-mono">{best?.mint}</div>
+            <div className="text-green-400">
+              +{best?.total.toFixed(2)} USD
+            </div>
+          </div>
+
+          <div>
+            🥀 <span className="text-red-400">WORST:</span>
+            <div className="font-mono">{worst?.mint}</div>
+            <div className="text-red-400">
+              {worst?.total.toFixed(2)} USD
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* SOL BALANCE */}
       <section className="terminal-box">
