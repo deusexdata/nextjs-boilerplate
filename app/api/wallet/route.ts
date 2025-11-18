@@ -5,30 +5,23 @@ const RPC_URL = process.env.SOLANA_RPC_URL!;
 const BOT_WALLET = process.env.BOT_WALLET_ADDRESS!;
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
+// DexScreener Price Fetch
 async function fetchDexscreenerPriceUsd(mint: string): Promise<number | null> {
   try {
     const url = `https://api.dexscreener.com/tokens/v1/solana/${mint}`;
     const res = await fetch(url, { cache: "no-store" });
 
-    if (!res.ok) {
-      console.error("Dexscreener error", res.status);
-      return null;
-    }
+    if (!res.ok) return null;
 
     const data = await res.json();
 
-    // Response is an array, we grab first pair if exists
     if (Array.isArray(data) && data.length > 0) {
-      const first = data[0];
-      const priceUsd = first?.priceUsd;
-      if (priceUsd !== undefined && priceUsd !== null) {
-        return Number(priceUsd);
-      }
+      const priceUsd = data[0]?.priceUsd;
+      return priceUsd ? Number(priceUsd) : null;
     }
-
     return null;
   } catch (e) {
-    console.error("Dexscreener fetch failed", e);
+    console.error("DexScreener error:", e);
     return null;
   }
 }
@@ -37,7 +30,7 @@ export async function GET() {
   try {
     if (!RPC_URL || !BOT_WALLET) {
       return NextResponse.json(
-        { error: "Missing env vars" },
+        { error: "Missing SOLANA_RPC_URL or BOT_WALLET_ADDRESS" },
         { status: 500 }
       );
     }
@@ -45,11 +38,11 @@ export async function GET() {
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
 
-    // 1) SOL balance
+    // 1) SOL Balance
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // 2) SPL token balances
+    // 2) SPL Token Balances
     const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
       pubkey,
       {
@@ -59,92 +52,55 @@ export async function GET() {
       }
     );
 
-    // Get raw token balances
     const rawTokens = tokenAccounts.value
-    .map((acc) => {
+      .map((acc) => {
         const info: any = acc.account.data.parsed.info;
         const amount = info.tokenAmount.uiAmount as number | null;
         const mint = info.mint as string;
         return { mint, amount: amount || 0 };
-    })
-    .filter((t) => t.amount > 0);
+      })
+      .filter((t) => t.amount > 0);
 
-    // For each token, fetch its USD price from DexScreener
+    // Fetch DexScreener prices
     const tokens = await Promise.all(
-    rawTokens.map(async (t) => {
+      rawTokens.map(async (t) => {
         const priceUsd = await fetchDexscreenerPriceUsd(t.mint);
         return {
-        ...t,
-        priceUsd, // may be null if DexScreener has no data
+          ...t,
+          priceUsd,
         };
-    })
+      })
     );
 
-    // 3) Recent txs for this wallet
-    const signatures = await connection.getSignaturesForAddress(pubkey, {
-      limit: 30,
-    });
-
-    const txsRaw = await Promise.all(
-      signatures.map((sig) =>
-        connection.getParsedTransaction(sig.signature, {
-          maxSupportedTransactionVersion: 0,
-        })
-      )
+    // 3) FETCH TRADES FROM SOLANATRACKER
+    const stRes = await fetch(
+      `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades`,
+      {
+        headers: {
+          "x-api-key": "f6854be6-b87b-4b55-8447-d6e269bfe816",
+          accept: "application/json",
+        },
+        cache: "no-store",
+      }
     );
 
-    // 4) Infer token changes (buys/sells) from token balances deltas
-    const trades: {
-      signature: string;
-      time: string | null;
-      mint: string;
-      amount: number;
-      side: "BUY" | "SELL";
-    }[] = [];
-
-    txsRaw.forEach((tx, i) => {
-      if (!tx || !tx.meta) return;
-
-      const sig = signatures[i].signature;
-      const pre = tx.meta.preTokenBalances || [];
-      const post = tx.meta.postTokenBalances || [];
-      const blockTime = tx.blockTime;
-
-      pre.forEach((p) => {
-        if (p.owner !== BOT_WALLET) return;
-
-        const after = post.find(
-          (x) => x.owner === p.owner && x.mint === p.mint
-        );
-
-        const beforeAmt = Number(p.uiTokenAmount.uiAmount || 0);
-        const afterAmt = Number(after?.uiTokenAmount.uiAmount || 0);
-        const delta = afterAmt - beforeAmt;
-
-        if (delta !== 0) {
-          trades.push({
-            signature: sig,
-            time: blockTime
-              ? new Date(blockTime * 1000).toISOString()
-              : null,
-            mint: p.mint,
-            amount: Math.abs(delta),
-            side: delta > 0 ? "BUY" : "SELL",
-          });
-        }
-      });
-    });
+    let stTrades = [];
+    if (stRes.ok) {
+      stTrades = await stRes.json();
+    } else {
+      console.error("SolanaTracker error:", await stRes.text());
+    }
 
     return NextResponse.json({
       wallet: BOT_WALLET,
       solBalance,
       tokens,
-      trades,
+      recentTrades: stTrades,
     });
   } catch (err) {
-    console.error("Wallet API error:", err);
+    console.error("API Wallet Error:", err);
     return NextResponse.json(
-      { error: "Failed to fetch wallet data" },
+      { error: "Failed to load wallet data" },
       { status: 500 }
     );
   }
