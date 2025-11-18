@@ -19,13 +19,45 @@ export async function GET() {
     const connection = new Connection(RPC_URL, "confirmed");
     const pubkey = new PublicKey(BOT_WALLET);
 
-    // ---- SOL BALANCE ----
+    // ---------------------------------------------------------
+    // 1) SOL BALANCE
+    // ---------------------------------------------------------
     const lamports = await connection.getBalance(pubkey);
     const solBalance = lamports / LAMPORTS_PER_SOL;
 
-    // ---- SOLANATRACKER TRADES ----
-    const tradeRes = await fetch(
-      `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=200`,
+    // ---------------------------------------------------------
+    // 2) PNL ENDPOINT
+    // ---------------------------------------------------------
+    const pnlRes = await fetch(
+      `https://data.solanatracker.io/pnl/${BOT_WALLET}`,
+      {
+        headers: { "x-api-key": API_KEY },
+        cache: "no-store",
+      }
+    );
+
+    let pnlData: any = { tokens: {}, summary: {} };
+
+    if (pnlRes.ok) {
+      pnlData = await pnlRes.json();
+    }
+
+    // Convert token PNL object → array
+    const pnlArray = Object.entries(pnlData.tokens || {}).map(
+      ([mint, stats]: any) => ({
+        mint,
+        name: stats.name ?? "",
+        realized: Number(stats.realized ?? 0),
+        unrealized: Number(stats.unrealized ?? 0),
+        total: Number(stats.total ?? 0),
+      })
+    );
+
+    // ---------------------------------------------------------
+    // 3) RECENT TRADES ENDPOINT
+    // ---------------------------------------------------------
+    const tradesRes = await fetch(
+      `https://data.solanatracker.io/wallet/${BOT_WALLET}/trades?limit=25`,
       {
         headers: { "x-api-key": API_KEY },
         cache: "no-store",
@@ -33,82 +65,37 @@ export async function GET() {
     );
 
     let trades: any[] = [];
-    if (tradeRes.ok) {
-      const body = await tradeRes.json();
-      trades = Array.isArray(body) ? body : body.trades || [];
+
+    if (tradesRes.ok) {
+      trades = await tradesRes.json();
+      if (!Array.isArray(trades)) trades = trades.trades || [];
     }
 
-    // ---- PNL CALCULATION ----
-    const pnlMap: Record<string, any> = {};
-
-    for (const t of trades) {
-      const mint =
-        t.to.token?.mint ||
-        t.from.token?.mint ||
-        t.to.token?.symbol ||
-        t.from.token?.symbol ||
-        "UNKNOWN";
-
-      if (!pnlMap[mint]) {
-        pnlMap[mint] = {
-          mint,
-          name: t.to.token?.name || t.from.token?.name || "",
-          image: t.to.token?.image || t.from.token?.image || "",
-          buys: 0,
-          sells: 0,
-          buyUsd: 0,
-          sellUsd: 0,
-          realizedPnlUsd: 0,
-        };
-      }
-
-      const row = pnlMap[mint];
-
-      const usd = Number(t.volume?.usd || 0);
-
-      const walletIsBuyer =
-        t.to.address === BOT_WALLET ||
-        t.to.owner === BOT_WALLET ||
-        t.from.token.symbol === "SOL";
-
-      const walletIsSeller =
-        t.from.address === BOT_WALLET ||
-        t.from.owner === BOT_WALLET;
-
-      if (walletIsBuyer) {
-        row.buys++;
-        row.buyUsd += usd;
-      }
-
-      if (walletIsSeller) {
-        row.sells++;
-        row.sellUsd += usd;
-      }
-
-      row.realizedPnlUsd = Number((row.sellUsd - row.buyUsd).toFixed(4));
-    }
-
-    const pnlArray = Object.values(pnlMap);
-
-    // Simplify trades for frontend
-    const lastTrades = trades.slice(0, 25).map((t: any) => ({
+    // Normalize trades for frontend
+    const lastTrades = trades.map((t: any) => ({
       tx: t.tx,
       time: t.timestamp,
       mint:
-        t.to.token?.mint ||
-        t.from.token?.mint ||
-        t.to.token?.symbol ||
-        t.from.token?.symbol,
-      side: t.from.token.symbol === "SOL" ? "BUY" : "SELL",
-      amount:
-        t.from.token.symbol === "SOL" ? t.to.amount : t.from.amount,
-      priceUsd: t.price?.usd || 0,
+        t.to?.token?.mint ||
+        t.from?.token?.mint ||
+        t.to?.token?.symbol ||
+        t.from?.token?.symbol ||
+        "UNKNOWN",
+      amount: Number(
+        t.from?.token?.symbol === "SOL" ? t.to?.amount : t.from?.amount
+      ),
+      priceUsd: Number(t.price?.usd ?? 0),
+      side: t.from?.token?.symbol === "SOL" ? "BUY" : "SELL",
     }));
 
+    // ---------------------------------------------------------
+    // SEND FINAL RESPONSE
+    // ---------------------------------------------------------
     return NextResponse.json({
       wallet: BOT_WALLET,
       solBalance,
       pnl: pnlArray,
+      summary: pnlData.summary || {},
       lastTrades,
     });
   } catch (err: any) {

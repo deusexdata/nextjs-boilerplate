@@ -18,7 +18,7 @@ export default function Page() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 60000); // refresh every 1 min
+    const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -30,9 +30,11 @@ export default function Page() {
     );
   }
 
+  const totalPnl =
+    data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
+
   return (
     <main className="min-h-screen p-8 space-y-12">
-
       {/* HEADER */}
       <h1 className="text-4xl mb-2">
         ► DEUS VISION :: ON-CHAIN INTELLIGENCE TERMINAL
@@ -49,39 +51,31 @@ export default function Page() {
         <p className="text-2xl">{data.solBalance.toFixed(4)} SOL</p>
       </section>
 
-      {/* REALIZED PNL SUMMARY */}
+      {/* TOTAL PNL */}
       <section className="terminal-box">
-        <h2 className="terminal-title">[ TOTAL REALIZED PNL ]</h2>
+        <h2 className="terminal-title">[ TOTAL PNL ]</h2>
+
         <p
           className={
-            data.pnl.reduce((n: number, t: any) => n + t.realizedPnlUsd, 0) >= 0
-              ? "text-green-400 text-3xl"
-              : "text-red-400 text-3xl"
+            totalPnl >= 0 ? "text-green-400 text-3xl" : "text-red-400 text-3xl"
           }
         >
-          {(
-            data.pnl.reduce(
-              (n: number, t: any) => n + (t.realizedPnlUsd || 0),
-              0
-            ) ?? 0
-          ).toFixed(2)}{" "}
-          USD
+          {totalPnl >= 0 ? "+" : ""}
+          {totalPnl.toFixed(2)} USD
         </p>
       </section>
 
       {/* PNL PER TOKEN */}
       <section className="terminal-box">
-        <h2 className="terminal-title">[ REALIZED PNL BY TOKEN ]</h2>
+        <h2 className="terminal-title">[ PNL BY TOKEN ]</h2>
 
         <table className="terminal-table">
           <thead>
             <tr>
-              <th>Token</th>
-              <th>Buys</th>
-              <th>Sells</th>
-              <th>Buy Volume</th>
-              <th>Sell Volume</th>
-              <th>Realized PNL</th>
+              <th>Token Mint</th>
+              <th>Realized</th>
+              <th>Unrealized</th>
+              <th>Total PNL</th>
             </tr>
           </thead>
 
@@ -89,14 +83,20 @@ export default function Page() {
             {data.pnl.map((t: any) => (
               <tr key={t.mint}>
                 <td className="font-mono">{t.mint}</td>
-                <td>{t.buys}</td>
-                <td>{t.sells}</td>
-                <td>${t.buyUsd.toFixed(2)}</td>
-                <td>${t.sellUsd.toFixed(2)}</td>
 
-                <td className={t.realizedPnlUsd >= 0 ? "text-green-300" : "text-red-400"}>
-                  {t.realizedPnlUsd >= 0 ? "+" : ""}
-                  {t.realizedPnlUsd.toFixed(2)}
+                <td className={t.realized >= 0 ? "text-green-300" : "text-red-400"}>
+                  {t.realized >= 0 ? "+" : ""}
+                  {t.realized.toFixed(2)}
+                </td>
+
+                <td className={t.unrealized >= 0 ? "text-green-300" : "text-red-400"}>
+                  {t.unrealized >= 0 ? "+" : ""}
+                  {t.unrealized.toFixed(2)}
+                </td>
+
+                <td className={t.total >= 0 ? "text-green-300" : "text-red-400"}>
+                  {t.total >= 0 ? "+" : ""}
+                  {t.total.toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -116,7 +116,7 @@ export default function Page() {
               <th>Side</th>
               <th>Mint</th>
               <th>Amount</th>
-              <th>Price</th>
+              <th>USD</th>
             </tr>
           </thead>
 
@@ -132,7 +132,6 @@ export default function Page() {
                     {t.tx.slice(0, 10)}…
                   </a>
                 </td>
-
                 <td>{new Date(t.time).toLocaleString()}</td>
 
                 <td className={t.side === "BUY" ? "text-green-300" : "text-red-400"}>
