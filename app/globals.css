@@ -1,7 +1,7 @@
 /* MATRIX-STYLE DARK TERMINAL BACKGROUND */
 html, body {
   background: #000;
-  color: #E4B300; /* Important text color */
+  color: #E4B300; /* Main text color */
   font-family: "JetBrains Mono", "Fira Code", monospace;
   padding: 0;
   margin: 0;
@@ -13,7 +13,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle glow (much lower than before) */
+/* Subtle glow */
 .terminal-glow {
   text-shadow: 0 0 2px rgba(228, 179, 0, 0.45);
 }
@@ -26,16 +26,16 @@ html, body {
   background: rgba(20, 15, 0, 0.35);
 }
 
-/* SECTION TITLES – stronger orange */
+/* SECTION TITLES */
 .terminal-title {
   font-size: 20px;
   margin-bottom: 10px;
   color: #E4B300;
   font-weight: bold;
-  text-shadow: none; /* matrix style = no glow */
+  text-shadow: none;
 }
 
-/* TABLES – SHARP MATRIX LINES */
+/* TABLES */
 .terminal-table {
   width: 100%;
   border-collapse: collapse;
@@ -62,7 +62,7 @@ html, body {
   background: rgba(40, 30, 0, 0.35);
 }
 
-/* LINKS – matrix-style highlight */
+/* LINKS */
 a {
   color: #FFD56A;
   text-decoration: none;
@@ -72,7 +72,7 @@ a:hover {
   color: #FFE28A;
 }
 
-/* CRT Scanline Overlay – toned down */
+/* CRT Scanline Overlay – subtle */
 .crt {
   position: relative;
 }
@@ -95,14 +95,14 @@ a:hover {
   z-index: 50;
 }
 
-/* SCREEN CURVATURE – almost none (matrix style) */
+/* SCREEN CURVATURE */
 .crt-screen {
   backdrop-filter: blur(0.3px);
   border-radius: 2px;
   box-shadow: inset 0 0 10px rgba(212, 175, 55, 0.1);
 }
 
-/* SOCIAL BUTTONS – sharper */
+/* SOCIAL BUTTONS */
 .terminal-buttons {
   display: flex;
   gap: 12px;
