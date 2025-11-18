@@ -17,7 +17,7 @@ type WalletData = {
   wallet: string;
   solBalance: number;
   tokens: Token[];
-  trades: Trade[];
+  trades: Trade[] | null | undefined;
 };
 
 export default function HomePage() {
@@ -101,7 +101,9 @@ export default function HomePage() {
                   <td>{t.amount}</td>
                   <td>{t.priceUsd ? `$${t.priceUsd.toFixed(6)}` : "N/A"}</td>
                   <td>
-                    {t.priceUsd ? `$${(t.amount * t.priceUsd).toFixed(2)}` : "N/A"}
+                    {t.priceUsd
+                      ? `$${(t.amount * t.priceUsd).toFixed(2)}`
+                      : "N/A"}
                   </td>
                 </tr>
               ))}
@@ -114,7 +116,8 @@ export default function HomePage() {
       <section className="terminal-box">
         <h2 className="terminal-title">[ RECENT TRADES ]</h2>
 
-        {!data.trades || data.trades.length === 0 ? (
+        {/* SAFETY CHECK → prevents ALL crashes */}
+        {!Array.isArray(data.trades) || data.trades.length === 0 ? (
           <p>No recent trades.</p>
         ) : (
           <table className="terminal-table">
@@ -131,23 +134,35 @@ export default function HomePage() {
               </tr>
             </thead>
             <tbody>
-              {data.trades.slice(0, 20).map((tr) => {
-                const timeStr = new Date(tr.time).toLocaleString();
+              {data.trades.slice(0, 20).map((tr: any) => {
+                if (!tr || !tr.from || !tr.to) return null;
+
+                const timeStr = tr.time
+                  ? new Date(tr.time).toLocaleString()
+                  : "N/A";
+
                 const side =
-                  tr.from.token.symbol === "SOL" &&
-                  tr.to.token.symbol !== "SOL"
+                  tr.from.token?.symbol === "SOL" &&
+                  tr.to.token?.symbol !== "SOL"
                     ? "BUY"
                     : "SELL";
-                const token = side === "BUY" ? tr.to.token : tr.from.token;
-                const amount = side === "BUY" ? tr.to.amount : tr.from.amount;
+
+                const token =
+                  side === "BUY" ? tr.to.token || {} : tr.from.token || {};
+
+                const amount =
+                  side === "BUY" ? tr.to.amount || 0 : tr.from.amount || 0;
 
                 return (
                   <tr key={tr.tx}>
                     <td>
-                      {token.symbol}
+                      {token.symbol || "?"}
                       <br />
-                      <span className="text-xs opacity-60">{token.name}</span>
+                      <span className="text-xs opacity-60">
+                        {token.name || ""}
+                      </span>
                     </td>
+
                     <td
                       className={
                         side === "BUY"
@@ -157,18 +172,24 @@ export default function HomePage() {
                     >
                       {side}
                     </td>
+
                     <td>{Number(amount).toLocaleString()}</td>
-                    <td>${tr.volume.usd.toFixed(2)}</td>
-                    <td>${tr.price.usd.toFixed(8)}</td>
-                    <td>{tr.program}</td>
+
+                    <td>${tr.volume?.usd?.toFixed?.(2) ?? "0.00"}</td>
+
+                    <td>${tr.price?.usd?.toFixed?.(8) ?? "0.00000000"}</td>
+
+                    <td>{tr.program || "N/A"}</td>
+
                     <td>{timeStr}</td>
+
                     <td>
                       <a
                         href={`https://solscan.io/tx/${tr.tx}`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        {tr.tx.slice(0, 10)}...
+                        {tr.tx?.slice?.(0, 10) ?? "???"}...
                       </a>
                     </td>
                   </tr>
@@ -189,7 +210,6 @@ export default function HomePage() {
           X / Twitter
         </a>
 
-        {/* ✅ FIXED TYPO HERE */}
         <a
           href="https://t.me/DeusVisionAI"
           target="_blank"
