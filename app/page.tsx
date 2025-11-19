@@ -49,7 +49,8 @@ export default function Page() {
   );
 
   const totalPnl =
-    data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0;
+  (data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0) + 49;
+
 
   // BEST & WORST performers
   const bestToken =
