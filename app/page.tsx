@@ -48,8 +48,13 @@ export default function Page() {
     (tradePage + 1) * PAGE_SIZE
   );
 
-  const totalPnl =
-  (data.pnl.reduce((sum: number, t: any) => sum + (t.total ?? 0), 0) || 0) + 49;
+// NEW TOTAL PNL CALCULATION BASED ON SOL VALUE
+const INITIAL_SOL = 1.5;
+
+const currentValueUsd = data.solBalance * data.solPrice;
+const initialValueUsd = INITIAL_SOL * data.solPrice;
+
+const totalPnl = currentValueUsd - initialValueUsd;
 
 
   // BEST & WORST performers

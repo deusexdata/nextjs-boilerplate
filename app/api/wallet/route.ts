@@ -157,11 +157,29 @@ pnlArray.sort((a, b) => b.lastTrade - a.lastTrade);
     });
 
     // ----------------------------------------------
+    // 4) GET REAL-TIME SOL PRICE (for frontend PNL calculation)
+    // ----------------------------------------------
+    let solPrice = 0;
+    try {
+      const priceRes = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+        { cache: "no-store" }
+      );
+      if (priceRes.ok) {
+        const priceJson = await priceRes.json();
+        solPrice = priceJson.solana?.usd ?? 0;
+      }
+    } catch (e) {
+      console.error("Failed to fetch SOL price", e);
+    }
+
+    // ----------------------------------------------
     // FINAL RESPONSE
     // ----------------------------------------------
     return NextResponse.json({
       wallet: BOT_WALLET,
       solBalance,
+      solPrice,   //  ← ADD THIS
       pnl: pnlArray,
       summary: pnlData.summary ?? {},
       lastTrades,
