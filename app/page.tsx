@@ -49,7 +49,7 @@ export default function Page() {
   );
 
 // NEW TOTAL PNL CALCULATION BASED ON SOL VALUE
-const INITIAL_SOL = 2;
+const INITIAL_SOL = 4.341110456;
 
 const currentValueUsd = data.solBalance * data.solPrice;
 const initialValueUsd = INITIAL_SOL * data.solPrice;
